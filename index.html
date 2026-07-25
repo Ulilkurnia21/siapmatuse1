@@ -8263,23 +8263,26 @@
 
               // 2. Tabel profiles (Akun Pengguna)
               if (data.profiles && data.profiles.length > 0) {
-                appendMigrasiLog(`⏳ [2/6] Menyisipkan ${data.profiles.length} akun ke tabel \`profiles\`...`);
-                const r2 = await adaptiveSupabaseInsert('profiles', data.profiles, true);
+                const uniqueProfiles = Array.from(new Map(data.profiles.map(p => [p.username, p])).values());
+                appendMigrasiLog(`⏳ [2/6] Menyisipkan ${uniqueProfiles.length} akun unik ke tabel \`profiles\`...`);
+                const r2 = await adaptiveSupabaseInsert('profiles', uniqueProfiles, true);
                 if (!r2.success) appendMigrasiLog("   ❌ Eror Profiles: " + r2.error.message, false, true);
-                else appendMigrasiLog(`   ✅ ${data.profiles.length} akun pengguna berhasil disuntikkan!`, true);
+                else appendMigrasiLog(`   ✅ ${uniqueProfiles.length} akun pengguna berhasil disuntikkan!`, true);
               }
 
               // 3. Tabel guru & siswa
               if (data.guru && data.guru.length > 0) {
-                appendMigrasiLog(`⏳ [3/6] Menyisipkan ${data.guru.length} data guru ke tabel \`guru\`...`);
-                const r3 = await adaptiveSupabaseInsert('guru', data.guru, true);
+                const uniqueGuru = Array.from(new Map(data.guru.map(g => [(g.nip || g.nip_nik || g.nama), g])).values());
+                appendMigrasiLog(`⏳ [3/6] Menyisipkan ${uniqueGuru.length} data guru unik ke tabel \`guru\`...`);
+                const r3 = await adaptiveSupabaseInsert('guru', uniqueGuru, true);
                 if (!r3.success) appendMigrasiLog("   ❌ Eror Guru: " + r3.error.message, false, true);
                 else appendMigrasiLog("   ✅ Master data Guru berhasil disisipkan.", true);
               }
 
               if (data.siswa && data.siswa.length > 0) {
-                appendMigrasiLog(`⏳ [4/6] Menyisipkan ${data.siswa.length} data siswa ke tabel \`siswa\`...`);
-                const r4 = await adaptiveSupabaseInsert('siswa', data.siswa, true);
+                const uniqueSiswa = Array.from(new Map(data.siswa.map(s => [s.nis, s])).values());
+                appendMigrasiLog(`⏳ [4/6] Menyisipkan ${uniqueSiswa.length} data siswa unik ke tabel \`siswa\`...`);
+                const r4 = await adaptiveSupabaseInsert('siswa', uniqueSiswa, true);
                 if (!r4.success) appendMigrasiLog("   ❌ Eror Siswa: " + r4.error.message, false, true);
                 else appendMigrasiLog("   ✅ Master data Siswa berhasil disisipkan.", true);
               }
