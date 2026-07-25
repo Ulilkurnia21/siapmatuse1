@@ -8218,7 +8218,6 @@
             const stats = res.stats || {};
             appendMigrasiLog(`✅ Sukses mengunduh paket migrasi (${res.timestamp}). Memualai inspeksi sheet...`, true);
 
-            // Tampilkan laporan sheet mati / kosong
             if (stats.activeSheets && stats.activeSheets.length > 0) {
               appendMigrasiLog("📊 Sheet Hidup Disalin: " + stats.activeSheets.join(", "));
             }
@@ -8232,7 +8231,7 @@
             }
 
             try {
-              async function adaptiveSupabaseInsert(tableName, dataArray, isUpsert = true) {
+              const adaptiveSupabaseInsert = async (tableName, dataArray, isUpsert = true) => {
                 if (!dataArray || dataArray.length === 0) return { success: true };
                 let currentData = dataArray.map(obj => ({ ...obj }));
                 let maxRetries = 10;
@@ -8252,7 +8251,7 @@
                   return { success: false, error: res.error };
                 }
                 return { success: false, error: { message: "Batas percobaan adaptasi skema tercapai" } };
-              }
+              };
 
               // 1. Tabel config
               if (data.config && data.config.length > 0) {
@@ -8286,20 +8285,25 @@
               }
 
               // 4. Tabel Riwayat Log (Absensi, Jurnal, Catatan, Pelanggaran)
-              appendMigrasiLog("⏳ [5/6] Menyisipkan riwayat transaksi log (Absensi, Jurnal & Catatan)...");
+              appendMigrasiLog("⏳ [5/6] Memasang & menyelaraskan riwayat transaksi log (Anti-Data Ganda)...");
+              
               if (data.log_absensi && data.log_absensi.length > 0) {
+                await _supabase.from('log_absensi').delete().neq('id', 0);
                 const rAbs = await adaptiveSupabaseInsert('log_absensi', data.log_absensi, false);
                 if (!rAbs.success) appendMigrasiLog("   ❌ Eror Log Absensi: " + rAbs.error.message, false, true);
               }
               if (data.log_jurnal && data.log_jurnal.length > 0) {
+                await _supabase.from('log_jurnal').delete().neq('id', 0);
                 const rJur = await adaptiveSupabaseInsert('log_jurnal', data.log_jurnal, false);
                 if (!rJur.success) appendMigrasiLog("   ❌ Eror Log Jurnal: " + rJur.error.message, false, true);
               }
               if (data.log_catatan && data.log_catatan.length > 0) {
+                await _supabase.from('log_catatan').delete().neq('id', 0);
                 const rCat = await adaptiveSupabaseInsert('log_catatan', data.log_catatan, false);
                 if (!rCat.success) appendMigrasiLog("   ❌ Eror Log Catatan: " + rCat.error.message, false, true);
               }
               if (data.log_pelanggaran && data.log_pelanggaran.length > 0) {
+                await _supabase.from('log_pelanggaran').delete().neq('id', 0);
                 const rPel = await adaptiveSupabaseInsert('log_pelanggaran', data.log_pelanggaran, false);
                 if (!rPel.success) appendMigrasiLog("   ℹ️ Catatan Log Pelanggaran: " + rPel.error.message);
               }
