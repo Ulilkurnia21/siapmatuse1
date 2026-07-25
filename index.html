@@ -8266,18 +8266,22 @@
               // 4. Tabel Riwayat Log (Absensi, Jurnal, Catatan, Pelanggaran)
               appendMigrasiLog("⏳ [5/6] Menyisipkan riwayat transaksi log (Absensi, Jurnal & Catatan)...");
               if (data.log_absensi && data.log_absensi.length > 0) {
-                await _supabase.from('log_absensi').insert(data.log_absensi).catch(e => {});
+                const { error: errAbs } = await _supabase.from('log_absensi').insert(data.log_absensi);
+                if (errAbs && errAbs.code !== '42P01') appendMigrasiLog("   ℹ️ Catatan Log Absensi: " + errAbs.message);
               }
               if (data.log_jurnal && data.log_jurnal.length > 0) {
-                await _supabase.from('log_jurnal').insert(data.log_jurnal).catch(e => {});
+                const { error: errJur } = await _supabase.from('log_jurnal').insert(data.log_jurnal);
+                if (errJur && errJur.code !== '42P01') appendMigrasiLog("   ℹ️ Catatan Log Jurnal: " + errJur.message);
               }
               if (data.log_catatan && data.log_catatan.length > 0) {
-                await _supabase.from('log_catatan').insert(data.log_catatan).catch(e => {});
+                const { error: errCat } = await _supabase.from('log_catatan').insert(data.log_catatan);
+                if (errCat && errCat.code !== '42P01') appendMigrasiLog("   ℹ️ Catatan Log Catatan: " + errCat.message);
               }
               if (data.log_pelanggaran && data.log_pelanggaran.length > 0) {
-                await _supabase.from('log_pelanggaran').insert(data.log_pelanggaran).catch(e => {});
+                const { error: errPel } = await _supabase.from('log_pelanggaran').insert(data.log_pelanggaran);
+                if (errPel && errPel.code !== '42P01') appendMigrasiLog("   ℹ️ Catatan Log Pelanggaran: " + errPel.message);
               }
-              appendMigrasiLog("   ✅ Seluruh log yang tersedia berhasil ditambahkan tanpa menduplikasi sheet mati.");
+              appendMigrasiLog("   ✅ Seluruh log yang tersedia berhasil diproses tanpa gangguan.");
 
               // 5. Finalize
               await new Promise(r => setTimeout(r, 600));
