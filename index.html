@@ -8235,47 +8235,47 @@
               // 1. Tabel config
               if (data.config && data.config.length > 0) {
                 appendMigrasiLog("⏳ [1/6] Menyisipkan tabel `config` ke Supabase...");
-                const { error: e1 } = await _supabase.from('config').upsert(data.config, { onConflict: 'npsn' });
-                if (e1 && e1.code !== '42P01') appendMigrasiLog("   ℹ️ Catatan Config: " + e1.message);
-                else appendMigrasiLog("   ✅ Tabel `config` berhasil tersinkron.");
+                const { error: e1 } = await _supabase.from('config').upsert(data.config);
+                if (e1 && e1.code !== '42P01') appendMigrasiLog("   ❌ Eror Config: " + e1.message, false, true);
+                else appendMigrasiLog("   ✅ Tabel `config` berhasil tersinkron.", true);
               }
 
               // 2. Tabel profiles (Akun Pengguna)
               if (data.profiles && data.profiles.length > 0) {
                 appendMigrasiLog(`⏳ [2/6] Menyisipkan ${data.profiles.length} akun ke tabel \`profiles\`...`);
-                const { error: e2 } = await _supabase.from('profiles').upsert(data.profiles, { onConflict: 'username' });
-                if (e2 && e2.code !== '42P01') appendMigrasiLog("   ℹ️ Catatan Profiles: " + e2.message);
-                else appendMigrasiLog(`   ✅ ${data.profiles.length} akun pengguna berhasil disuntikkan!`);
+                const { error: e2 } = await _supabase.from('profiles').upsert(data.profiles);
+                if (e2 && e2.code !== '42P01') appendMigrasiLog("   ❌ Eror Profiles: " + e2.message, false, true);
+                else appendMigrasiLog(`   ✅ ${data.profiles.length} akun pengguna berhasil disuntikkan!`, true);
               }
 
               // 3. Tabel guru & siswa
               if (data.guru && data.guru.length > 0) {
                 appendMigrasiLog(`⏳ [3/6] Menyisipkan ${data.guru.length} data guru ke tabel \`guru\`...`);
-                const { error: e3 } = await _supabase.from('guru').upsert(data.guru, { onConflict: 'nip_nik' });
-                if (e3 && e3.code !== '42P01') appendMigrasiLog("   ℹ️ Catatan Guru: " + e3.message);
-                else appendMigrasiLog("   ✅ Master data Guru berhasil disisipkan.");
+                const { error: e3 } = await _supabase.from('guru').upsert(data.guru);
+                if (e3 && e3.code !== '42P01') appendMigrasiLog("   ❌ Eror Guru: " + e3.message, false, true);
+                else appendMigrasiLog("   ✅ Master data Guru berhasil disisipkan.", true);
               }
 
               if (data.siswa && data.siswa.length > 0) {
                 appendMigrasiLog(`⏳ [4/6] Menyisipkan ${data.siswa.length} data siswa ke tabel \`siswa\`...`);
-                const { error: e4 } = await _supabase.from('siswa').upsert(data.siswa, { onConflict: 'nis' });
-                if (e4 && e4.code !== '42P01') appendMigrasiLog("   ℹ️ Catatan Siswa: " + e4.message);
-                else appendMigrasiLog("   ✅ Master data Siswa berhasil disisipkan.");
+                const { error: e4 } = await _supabase.from('siswa').upsert(data.siswa);
+                if (e4 && e4.code !== '42P01') appendMigrasiLog("   ❌ Eror Siswa: " + e4.message, false, true);
+                else appendMigrasiLog("   ✅ Master data Siswa berhasil disisipkan.", true);
               }
 
               // 4. Tabel Riwayat Log (Absensi, Jurnal, Catatan, Pelanggaran)
               appendMigrasiLog("⏳ [5/6] Menyisipkan riwayat transaksi log (Absensi, Jurnal & Catatan)...");
               if (data.log_absensi && data.log_absensi.length > 0) {
                 const { error: errAbs } = await _supabase.from('log_absensi').insert(data.log_absensi);
-                if (errAbs && errAbs.code !== '42P01') appendMigrasiLog("   ℹ️ Catatan Log Absensi: " + errAbs.message);
+                if (errAbs && errAbs.code !== '42P01') appendMigrasiLog("   ❌ Eror Log Absensi: " + errAbs.message, false, true);
               }
               if (data.log_jurnal && data.log_jurnal.length > 0) {
                 const { error: errJur } = await _supabase.from('log_jurnal').insert(data.log_jurnal);
-                if (errJur && errJur.code !== '42P01') appendMigrasiLog("   ℹ️ Catatan Log Jurnal: " + errJur.message);
+                if (errJur && errJur.code !== '42P01') appendMigrasiLog("   ❌ Eror Log Jurnal: " + errJur.message, false, true);
               }
               if (data.log_catatan && data.log_catatan.length > 0) {
                 const { error: errCat } = await _supabase.from('log_catatan').insert(data.log_catatan);
-                if (errCat && errCat.code !== '42P01') appendMigrasiLog("   ℹ️ Catatan Log Catatan: " + errCat.message);
+                if (errCat && errCat.code !== '42P01') appendMigrasiLog("   ❌ Eror Log Catatan: " + errCat.message, false, true);
               }
               if (data.log_pelanggaran && data.log_pelanggaran.length > 0) {
                 const { error: errPel } = await _supabase.from('log_pelanggaran').insert(data.log_pelanggaran);
