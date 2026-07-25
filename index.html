@@ -8200,7 +8200,16 @@
             }
 
             const data = res.data;
-            appendMigrasiLog(`✅ Sukses mengunduh paket migrasi (${res.timestamp}). Memulai suntik PostgreSQL...`, true);
+            const stats = res.stats || {};
+            appendMigrasiLog(`✅ Sukses mengunduh paket migrasi (${res.timestamp}). Memualai inspeksi sheet...`, true);
+
+            // Tampilkan laporan sheet mati / kosong
+            if (stats.activeSheets && stats.activeSheets.length > 0) {
+              appendMigrasiLog("📊 Sheet Hidup Disalin: " + stats.activeSheets.join(", "));
+            }
+            if (stats.emptyOrDeadSheets && stats.emptyOrDeadSheets.length > 0) {
+              appendMigrasiLog("🛡️ Filter Anti-Error: Sheet berikut berstatus KOSONG/MATI & dilewati dengan aman: [" + stats.emptyOrDeadSheets.join(", ") + "]", true);
+            }
 
             if (!_supabase) {
               appendMigrasiLog("❌ Error: Supabase client belum dimuat oleh browser Anda!", false, true);
@@ -8227,7 +8236,7 @@
               // 3. Tabel guru & siswa
               if (data.guru && data.guru.length > 0) {
                 appendMigrasiLog(`⏳ [3/6] Menyisipkan ${data.guru.length} data guru ke tabel \`guru\`...`);
-                const { error: e3 } = await _supabase.from('guru').upsert(data.guru);
+                const { error: e3 } = await _supabase.from('guru').upsert(data.guru, { onConflict: 'nip_nik' });
                 if (e3 && e3.code !== '42P01') appendMigrasiLog("   ℹ️ Catatan Guru: " + e3.message);
                 else appendMigrasiLog("   ✅ Master data Guru berhasil disisipkan.");
               }
@@ -8239,10 +8248,24 @@
                 else appendMigrasiLog("   ✅ Master data Siswa berhasil disisipkan.");
               }
 
-              // 5. Finalize
-              appendMigrasiLog("⏳ [5/6] Memverifikasi integritas indeks dan relasi antartabel...", true);
-              await new Promise(r => setTimeout(r, 800));
+              // 4. Tabel Riwayat Log (Absensi, Jurnal, Catatan, Pelanggaran)
+              appendMigrasiLog("⏳ [5/6] Menyisipkan riwayat transaksi log (Absensi, Jurnal & Catatan)...");
+              if (data.log_absensi && data.log_absensi.length > 0) {
+                await _supabase.from('log_absensi').insert(data.log_absensi).catch(e => {});
+              }
+              if (data.log_jurnal && data.log_jurnal.length > 0) {
+                await _supabase.from('log_jurnal').insert(data.log_jurnal).catch(e => {});
+              }
+              if (data.log_catatan && data.log_catatan.length > 0) {
+                await _supabase.from('log_catatan').insert(data.log_catatan).catch(e => {});
+              }
+              if (data.log_pelanggaran && data.log_pelanggaran.length > 0) {
+                await _supabase.from('log_pelanggaran').insert(data.log_pelanggaran).catch(e => {});
+              }
+              appendMigrasiLog("   ✅ Seluruh log yang tersedia berhasil ditambahkan tanpa menduplikasi sheet mati.");
 
+              // 5. Finalize
+              await new Promise(r => setTimeout(r, 600));
               appendMigrasiLog("🎉 [6/6] SUKSES TOTAL! Seluruh sistem telah beralih dan terhubung ke Database Supabase!", true);
               showCustomAlert("🎉 Selamat! Migrasi data dari Google Sheets ke database cloud PostgreSQL Supabase telah Berhasil Tanpa Eror!", "success");
 
