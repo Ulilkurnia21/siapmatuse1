@@ -6824,14 +6824,18 @@
     // ============ FUNGSI MODUL ORANG TUA (ORTU ONLY) ============
     // ============================================================
     function renderOrangTua() {
-      const profil = App.user.profil;
-      if (App.user.role !== 'ortu') {
+      const profil = (App.user && App.user.profil) ? App.user.profil : {};
+      if (!App.user || App.user.role !== 'ortu') {
         document.getElementById('orang_tua').innerHTML = '<div class="form-section"><p>Menu ini hanya untuk Orang Tua.</p></div>';
         return;
       }
 
+      const listAnak = Array.isArray(profil.siswaList) && profil.siswaList.length > 0 
+        ? profil.siswaList 
+        : [{ nis: profil.email || profil.nis || '12345', nama: profil.nama || 'Siswa', kelas: profil.kelas || '-' }];
+
       let siswaOptions = '';
-      profil.siswaList.forEach(s => {
+      listAnak.forEach(s => {
         siswaOptions += `<option value="${s.nis}" data-kelas="${s.kelas}">${s.nama} (${s.kelas})</option>`;
       });
 
@@ -7761,6 +7765,9 @@
                 detailProfil.nama = sData.nama;
                 detailProfil.kelas = sData.kelas;
                 detailProfil.nama_orang_tua = sData.nama_orang_tua || `Ortu dari ${sData.nama}`;
+                detailProfil.siswaList = [{ nis: sData.nis, nama: sData.nama, kelas: sData.kelas }];
+              } else {
+                detailProfil.siswaList = [{ nis: user, nama: profData.full_name || 'Siswa', kelas: '-' }];
               }
             }
 
@@ -7802,7 +7809,8 @@
               nama: sDirect.nama, 
               kelas: sDirect.kelas, 
               nama_orang_tua: sDirect.nama_orang_tua || `Ortu dari ${sDirect.nama}`,
-              jabatan: 'ortu' 
+              jabatan: 'ortu',
+              siswaList: [{ nis: sDirect.nis, nama: sDirect.nama, kelas: sDirect.kelas }]
             };
             const appConfig = { npsn: '69774642', namaSekolah: 'SMAN Mapat Tunggul Selatan', kelasReguler: ['E1', 'E2', 'E3', 'F1.1', 'F1.2', 'F1.3', 'F2.1', 'F2.2', 'F3.3'] };
             localStorage.setItem('AppUser', JSON.stringify(detailProfil));
