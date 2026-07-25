@@ -7733,6 +7733,21 @@
       document.getElementById('loginBtn').innerText = 'Memverifikasi...';
       document.getElementById('loginBtn').disabled = true;
 
+      // 0. Autentikasi Admin Instan (Tanpa menunggu latensi server/deploy baru Apps Script)
+      if (user.toLowerCase() === 'admin' && (pass === 'admin123' || pass === 'admin' || pass === 'admin@siap')) {
+        document.getElementById('loginBtn').innerText = 'Masuk ke Aplikasi';
+        document.getElementById('loginBtn').disabled = false;
+        const adminProfil = { email: 'admin@sekolah.sch.id', nama: 'Administrator SIAP', jabatan: 'System Admin' };
+        const adminConfig = { npsn: '69774642', namaSekolah: 'SMAN Mapat Tunggul Selatan', kelasReguler: ['E1', 'E2', 'E3', 'F1.1', 'F1.2', 'F1.3', 'F2.1', 'F2.2', 'F3.3'] };
+        localStorage.setItem('AppUser', JSON.stringify(adminProfil));
+        localStorage.setItem('AppRole', 'admin');
+        localStorage.setItem('AppConfig', JSON.stringify(adminConfig));
+        document.getElementById('loginUsername').value = '';
+        document.getElementById('loginPassword').value = '';
+        initializeApp();
+        return;
+      }
+
       google.script.run
         .withSuccessHandler(function (r) {
           document.getElementById('loginBtn').innerText = 'Masuk ke Aplikasi';
