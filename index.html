@@ -1681,8 +1681,9 @@
 
     function buildNavigation() {
       let navItems = [];
+      const roleLower = App.user.role ? App.user.role.toLowerCase() : '';
 
-      if (App.user.role === 'guru') {
+      if (roleLower === 'guru') {
         navItems = [
           { id: 'beranda', label: '🏠', text: 'BERANDA' },
           { id: 'absensi', label: '📋', text: 'ABSENSI' },
@@ -1694,11 +1695,11 @@
           { id: 'wali', label: '🤝', text: 'WALI' },
           { id: 'laporan', label: '📊', text: 'LAPORAN' }
         ];
-      } else if (App.user.role === 'ortu') {
+      } else if (roleLower === 'ortu' || roleLower === 'orang_tua' || roleLower === 'orangtua' || roleLower === 'orang tua') {
         navItems = [
           { id: 'orang_tua', label: '👪', text: 'ORANG TUA' }
         ];
-      } else if (App.user.role === 'pimpinan') {
+      } else if (roleLower === 'pimpinan') {
         navItems = [
           { id: 'pimpinan_beranda', label: '🏠', text: 'BERANDA' },
           { id: 'pimpinan_kehadiran', label: '📈', text: 'KEHADIRAN' },
