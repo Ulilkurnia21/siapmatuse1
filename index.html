@@ -1551,18 +1551,29 @@
       showLoading(true, 'Memuat daftar siswa (hanya sekali)...');
       const fn = isMC ? 'getSiswaByKelasMC' : 'getSiswaByKelas';
 
-      google.script.run
-        .withSuccessHandler(function (r) {
-          if (r.success) {
-            App.pesertaCache[cacheKey] = r.siswa;
-          }
-          showLoading(false);
-          callback(r);
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-          callback({ success: false, error: e });
-        })[fn](kelas);
+      if (isMC) {
+        supaClient.from('mapel_moving_siswa').select('nis, nama, gender').eq('kelas', kelas).order('nama')
+          .then(({data, error}) => {
+            showLoading(false);
+            if (error) {
+              callback({ success: false, error: error.message });
+            } else {
+              App.pesertaCache[cacheKey] = data;
+              callback({ success: true, siswa: data });
+            }
+          });
+      } else {
+        supaClient.from('data_siswa').select('nis, nama, gender').eq('kelas', kelas).order('nama')
+          .then(({data, error}) => {
+            showLoading(false);
+            if (error) {
+              callback({ success: false, error: error.message });
+            } else {
+              App.pesertaCache[cacheKey] = data;
+              callback({ success: true, siswa: data });
+            }
+          });
+      }
     }
 
     // ============================================================
@@ -2795,29 +2806,27 @@
       confirmAction(`Simpan ${dataToSave.length} data absensi?`, function () {
         toggleButtonLoading('button[onclick="simpanAbsensi()"]', true, '⏳ Menyimpan...');
 
-        google.script.run
-          .withSuccessHandler(function (r) {
+        const absensiData = dataToSave.map(d => ({
+          nis: d.nis,
+          nama: d.nama,
+          kelas: kelas,
+          mapel: mapel,
+          tanggal: tanggal,
+          jam: jam,
+          status: d.status,
+          username_guru: App.user.username
+        }));
+
+        supaClient.from('absensi').insert(absensiData)
+          .then(({data, error}) => {
             toggleButtonLoading('button[onclick="simpanAbsensi()"]', false);
-            if (r.success) {
-              showSuccess(`${r.jumlah} data tersimpan`);
-              document.getElementById('absenContainer').style.display = 'none';
+            if (error) {
+              showError(error.message || 'Gagal menyimpan');
             } else {
-              showError(r.error || 'Gagal menyimpan');
+              showSuccess(`${dataToSave.length} data tersimpan`);
+              document.getElementById('absenContainer').style.display = 'none';
             }
-          })
-          .withFailureHandler(function (e) {
-            toggleButtonLoading('button[onclick="simpanAbsensi()"]', false);
-            showError('Gagal: ' + e);
-          })
-          .simpanAbsensiBatch(dataToSave.map(d => ({
-            nis: d.nis,
-            nama: d.nama,
-            kelas: kelas,
-            mapel: mapel,
-            jam: jam,
-            status: d.status,
-            tanggal: tanggal
-          })), App.user.email);
+          });
       });
     }
 
@@ -6381,7 +6390,7 @@
         if (tab === 'kehadiran') {
           loadLaporanKehadiran(ekskulId, tahunAjaran, filterKelas);
         } else {
-          loadLaporanCatatan(ekskulId, tahunAjaran, currentCatatanMode, filterKelas);
+          loadLaporanCatatan(ekskulId, tahunAjaran, mode, filterKelas);
         }
       }
     }
@@ -6802,22 +6811,24 @@
 
       const data = {
         tanggal: tanggal,
-        jamMulai: jamMulai,
-        jamSelesai: jamSelesai,
+        jam_mulai: jamMulai,
+        jam_selesai: jamSelesai,
         kegiatan: kegiatan,
         kelas: kelas || '-',
         mapel: mapel || '-',
         materi: materi,
         keterangan: keterangan || '-',
-        diisiOleh: App.user.profil.email
+        username_guru: App.user.username
       };
 
       showLoading(true, 'Sedang menyimpan data jurnal...');
 
-      google.script.run
-        .withSuccessHandler(function (r) {
+      supaClient.from('jurnal').insert([data])
+        .then(({data: responseData, error}) => {
           showLoading(false);
-          if (r.success) {
+          if (error) {
+            showError(error.message || 'Gagal menyimpan jurnal');
+          } else {
             showSuccess('Jurnal tersimpan');
             // Reset form
             document.getElementById('jurnalJamMulai').value = '';
@@ -6827,56 +6838,37 @@
             document.getElementById('jurnalMapel').value = '';
             document.getElementById('jurnalMateri').value = '';
             document.getElementById('jurnalKeterangan').value = '';
+            
             // Reload data
             window.currentJurnalPage = 1;
             window.prefetchJurnal = {};
             loadJurnalData(1);
-          } else {
-            showError(r.error || 'Gagal menyimpan');
           }
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-          showError('Gagal: ' + e);
-        })
-        .simpanJurnal(data);
+        });
     }
 
     function loadJurnalData(page) {
       window.currentJurnalPage = page;
-      window.prefetchJurnal = window.prefetchJurnal || {};
       
-      if (window.prefetchJurnal[page]) {
-        const r = window.prefetchJurnal[page];
-        tampilkanRiwayatJurnal(r.data, r.total, page);
-        const totalPages = Math.ceil(r.total / JURNAL_PER_PAGE);
-        if (page < totalPages && !window.prefetchJurnal[page + 1]) {
-          google.script.run.withSuccessHandler(res => { if (res.success) window.prefetchJurnal[page + 1] = res; }).getRiwayatJurnal(page + 1, JURNAL_PER_PAGE, App.user.profil.email);
-        }
-        return;
-      }
-
       showLoading(true);
 
-      google.script.run
-        .withSuccessHandler(function (r) {
+      const limit = typeof JURNAL_PER_PAGE !== 'undefined' ? JURNAL_PER_PAGE : 10;
+      
+      supaClient.from('jurnal')
+        .select('*', { count: 'exact' })
+        .eq('username_guru', App.user.username)
+        .order('tanggal', { ascending: false })
+        .order('jam_mulai', { ascending: false })
+        .range((page - 1) * limit, page * limit - 1)
+        .then(({data: rData, error, count}) => {
           showLoading(false);
-          if (r.success) {
-            window.prefetchJurnal[page] = r;
-            tampilkanRiwayatJurnal(r.data, r.total, page);
-            const totalPages = Math.ceil(r.total / JURNAL_PER_PAGE);
-            if (page < totalPages && !window.prefetchJurnal[page + 1]) {
-              google.script.run.withSuccessHandler(res => { if (res.success) window.prefetchJurnal[page + 1] = res; }).getRiwayatJurnal(page + 1, JURNAL_PER_PAGE, App.user.profil.email);
-            }
-          } else {
-            document.getElementById('jurnalRiwayatTable').innerHTML = '<p style="text-align:center; padding:20px; color:red;">Gagal memuat data</p>';
+          if (error) {
+            document.getElementById('jurnalRiwayatTable').innerHTML = `<p style="text-align:center; padding:20px; color:red;">Error: ${error.message}</p>`;
+            return;
           }
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-          showError('Gagal: ' + e);
-        })
-        .getRiwayatJurnal(page, JURNAL_PER_PAGE, App.user.profil.email);
+          
+          tampilkanRiwayatJurnal(rData, count || 0, page);
+        });
     }
 
     function tampilkanRiwayatJurnal(data, total, currentPage) {
@@ -6909,12 +6901,18 @@
 
       data.forEach((item, index) => {
         const rowNumber = ((currentPage - 1) * JURNAL_PER_PAGE) + index + 1;
-        const jam = item.jamMulai + ' - ' + item.jamSelesai;
+        const jam = item.jam_mulai + ' - ' + item.jam_selesai;
+        
+        // Buat nama hari dari tanggal
+        const dateObj = new Date(item.tanggal);
+        const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        const namaHari = days[dateObj.getDay()];
+        const tglFormatted = dateObj.toLocaleDateString('id-ID', {day: '2-digit', month: '2-digit', year: 'numeric'});
 
         html += `
       <tr>
         <td style="text-align:center;">${rowNumber}</td>
-        <td>${item.hari}, ${item.tanggal}</td>
+        <td>${namaHari}, ${tglFormatted}</td>
         <td style="text-align:center;">${jam}</td>
         <td style="text-align:left;">${item.kegiatan}</td>
         <td style="text-align:center;">${item.kelas !== '-' ? item.kelas : ''}</td>
