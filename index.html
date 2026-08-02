@@ -2378,13 +2378,48 @@
         const { data, error } = await supaClient
           .from('jadwal')
           .select('hari, jam, kelas, mapel')
-          .eq('username_guru', username)
-          .order('jam', { ascending: true });
+          .eq('username_guru', username);
           
         if (error) throw error;
         
-        AppCache.set(cacheKey, data || [], 60); // Cache 60 menit
-        renderJadwalDom(data || []);
+        let groupedJadwal = [];
+        if (data && data.length > 0) {
+          // 1. Urutkan berdasarkan hari dan jam
+          const hariOrder = { 'senin': 1, 'selasa': 2, 'rabu': 3, 'kamis': 4, 'jumat': 5, 'sabtu': 6, 'minggu': 7 };
+          data.sort((a, b) => {
+            const hA = hariOrder[a.hari.toLowerCase()] || 99;
+            const hB = hariOrder[b.hari.toLowerCase()] || 99;
+            if (hA !== hB) return hA - hB;
+            return parseInt(a.jam) - parseInt(b.jam);
+          });
+
+          // 2. Kelompokkan jam yang berurutan (misal 1, 2 menjadi 1-2)
+          let currentGroup = null;
+          for (let i = 0; i < data.length; i++) {
+            let row = data[i];
+            if (!currentGroup) {
+              currentGroup = { ...row, startJam: parseInt(row.jam), endJam: parseInt(row.jam) };
+            } else {
+              if (currentGroup.hari.toLowerCase() === row.hari.toLowerCase() && 
+                  currentGroup.kelas === row.kelas && 
+                  currentGroup.mapel === row.mapel && 
+                  parseInt(row.jam) === currentGroup.endJam + 1) {
+                currentGroup.endJam = parseInt(row.jam);
+              } else {
+                let jamStr = currentGroup.startJam === currentGroup.endJam ? `${currentGroup.startJam}` : `${currentGroup.startJam}-${currentGroup.endJam}`;
+                groupedJadwal.push({ hari: currentGroup.hari, jam: jamStr, kelas: currentGroup.kelas, mapel: currentGroup.mapel });
+                currentGroup = { ...row, startJam: parseInt(row.jam), endJam: parseInt(row.jam) };
+              }
+            }
+          }
+          if (currentGroup) {
+            let jamStr = currentGroup.startJam === currentGroup.endJam ? `${currentGroup.startJam}` : `${currentGroup.startJam}-${currentGroup.endJam}`;
+            groupedJadwal.push({ hari: currentGroup.hari, jam: jamStr, kelas: currentGroup.kelas, mapel: currentGroup.mapel });
+          }
+        }
+        
+        AppCache.set(cacheKey, groupedJadwal, 60); // Cache 60 menit
+        renderJadwalDom(groupedJadwal);
       } catch (err) {
         console.warn('[Jadwal] Gagal:', err);
         const el = document.getElementById('jadwalSection');
