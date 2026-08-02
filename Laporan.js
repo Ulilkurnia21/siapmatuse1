@@ -402,9 +402,8 @@ async function downloadLaporanBulanan() {
         table { width:100%; border-collapse: collapse; margin:20px 0; font-size:11px; }
         th { background: #2e7d32 !important; color: white !important; padding: 8px; text-align: center; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         td { border: 1px solid #a5d6a7; padding: 6px; text-align: center; }
-        .ttd { margin-top: 50px; display: flex; justify-content: flex-end; }
-        .ttd div { text-align: center; width: 45%; }
-        .ttd .sign-space { margin-top: 80px; font-weight: bold; text-decoration: underline; }
+        .ttd { margin-top: 50px; text-align: right; }
+        .ttd div { margin-top: 60px; }
         .rekap-col { background: #e8f5e9 !important; font-weight: bold; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: black !important; }
       </style>
     </head>
@@ -495,11 +494,11 @@ async function downloadLaporanBulanan() {
           </table>
           
           <div class="ttd">
+            <p>Silayang, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            <p>Wali Kelas</p>
             <div>
-              <p>Silayang, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-              <p>Wali Kelas</p>
-              <div class="sign-space">${namaWali}</div>
-              <p>NIP. ${nipWali}</p>
+              <b><u>${namaWali}</u></b><br>
+              NIP. ${nipWali}
             </div>
           </div>
         `;
@@ -508,12 +507,11 @@ async function downloadLaporanBulanan() {
             const mingguArray = [];
             let mingguKe = 1;
             let startDate = new Date(mObj.yyyy, mObj.mm - 1, 1);
-            let day = startDate.getDay();
-            let diffToMonday = day === 0 ? -6 : 1 - day;
-            startDate.setDate(startDate.getDate() + diffToMonday);
+            while (startDate.getDay() !== 1) {
+              startDate.setDate(startDate.getDate() + 1);
+            }
 
-            let hasMoreWeeks = true;
-            while (hasMoreWeeks) {
+            while (startDate.getMonth() + 1 === mObj.mm && startDate.getFullYear() === mObj.yyyy) {
               const minggu = {
                 mingguKe: mingguKe,
                 tanggalMulai: new Date(startDate),
@@ -531,10 +529,6 @@ async function downloadLaporanBulanan() {
 
               startDate.setDate(startDate.getDate() + 7);
               mingguKe++;
-
-              if (startDate.getFullYear() > mObj.yyyy || (startDate.getFullYear() === mObj.yyyy && startDate.getMonth() + 1 > mObj.mm)) {
-                hasMoreWeeks = false;
-              }
             }
 
             mingguArray.forEach((minggu, mIdx) => {
@@ -589,11 +583,11 @@ async function downloadLaporanBulanan() {
             </tbody>
           </table>
           <div class="ttd">
+            <p>Silayang, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            <p>Wali Kelas</p>
             <div>
-              <p>Silayang, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-              <p>Wali Kelas</p>
-              <div class="sign-space">${namaWali}</div>
-              <p>NIP. ${nipWali}</p>
+              <b><u>${namaWali}</u></b><br>
+              NIP. ${nipWali}
             </div>
           </div>
           `;
