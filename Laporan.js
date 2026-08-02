@@ -16,10 +16,10 @@ const KOP_SURAT_LAPORAN = `
 
 // ================= DOWNLOAD LAPORAN GURU =================
 async function downloadLaporanGuru() {
-  const kelas = document.getElementById('lapGuruKelas')?.value;
-  const mapel = document.getElementById('lapGuruMapel')?.value;
-  const bulan = document.getElementById('lapGuruBulan')?.value;
-  const tahun = document.getElementById('lapGuruTahun')?.value;
+  const kelas = document.getElementById('laporanKelas')?.value;
+  const mapel = document.getElementById('laporanMapel')?.value;
+  const bulan = document.getElementById('laporanBulan')?.value;
+  const tahun = document.getElementById('laporanTahun')?.value;
 
   if (!kelas || !mapel || !bulan || !tahun) {
     showError('Mohon lengkapi pilihan kelas, mapel, bulan, dan tahun');
@@ -264,9 +264,9 @@ async function downloadLaporanGuru() {
 
 // ================= DOWNLOAD LAPORAN BULANAN (WALI KELAS) =================
 async function downloadLaporanBulanan() {
-  const kelas = document.getElementById('lapBulananKelas')?.value;
-  const bulan = document.getElementById('lapBulananBulan')?.value;
-  const tahun = document.getElementById('lapBulananTahun')?.value;
+  const kelas = document.getElementById('bulananKelas')?.value;
+  const bulan = document.getElementById('bulananBulan')?.value;
+  const tahun = document.getElementById('bulananTahun')?.value;
 
   if (!kelas || !bulan || !tahun) {
     showError('Mohon lengkapi pilihan kelas, bulan, dan tahun');
