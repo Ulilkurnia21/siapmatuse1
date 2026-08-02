@@ -1552,7 +1552,7 @@
       const fn = isMC ? 'getSiswaByKelasMC' : 'getSiswaByKelas';
 
       if (isMC) {
-        supaClient.from('mapel_moving_siswa').select('nis, nama, gender').eq('kelas', kelas).order('nama')
+        supaClient.from('mapel_moving_siswa').select('nis, nama').eq('kelas', kelas).order('nama')
           .then(({data, error}) => {
             showLoading(false);
             if (error) {
@@ -1563,7 +1563,7 @@
             }
           });
       } else {
-        supaClient.from('data_siswa').select('nis, nama, gender').eq('kelas', kelas).order('nama')
+        supaClient.from('data_siswa').select('nis, nama').eq('kelas', kelas).order('nama')
           .then(({data, error}) => {
             showLoading(false);
             if (error) {
