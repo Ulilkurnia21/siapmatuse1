@@ -2215,60 +2215,92 @@
     // ============================================================
     // ============ FUNGSI BERANDA ================================
     // ============================================================
-    function loadBeranda() {
+    async function loadBeranda() {
+      if (!App.user) return;
+      
+      // Petakan data dari Supabase ke struktur App.guruData yang diharapkan Frontend
       if (!App.guruData) {
-        showLoading(true);
-        google.script.run
-          .withSuccessHandler(function (r) {
-            App.guruData = r;
-            renderBeranda();
-            showLoading(false);
-          })
-          .withFailureHandler(function (e) {
-            showError('Gagal memuat data guru: ' + e);
-            showLoading(false);
-          })
-          .getDataGuruByEmail(App.user.email);
-      } else {
-        renderBeranda();
+        App.guruData = {
+          success: true,
+          email: App.user.username,
+          nama: App.user.nama,
+          role: App.user.role,
+          kelasReguler: App.user.kelas_reguler ? App.user.kelas_reguler.split(',').map(s => s.trim()).filter(s => s) : [],
+          kelasMC: App.user.kelas_mc ? App.user.kelas_mc.split(',').map(s => s.trim()).filter(s => s) : [],
+          mapelList: App.user.mapel ? App.user.mapel.split(',').map(s => s.trim()).filter(s => s) : []
+        };
       }
+      
+      renderBeranda();
     }
 
-    function renderBeranda(forceRefresh = false) {
+    async function renderBeranda(forceRefresh = false) {
       // Cek apakah data guru tersedia
       if (!App.guruData || !App.guruData.success) {
-        document.getElementById('beranda').innerHTML = `<div class="form-section"><h3 style="color:red">⚠️ Akses Ditolak</h3><p>Data guru tidak tersedia untuk email: <b>${App.user.email || 'KOSONG (Masalah Multiple Login Google)'}</b></p><p>Harap pastikan browser Anda tidak sedang login menggunakan beberapa akun Google secara bersamaan, atau gunakan mode <b>Incognito / Private Window</b>.</p></div>`;
+        document.getElementById('beranda').innerHTML = `<div class="form-section"><h3 style="color:red">⚠️ Akses Ditolak</h3><p>Data profil Anda tidak valid.</p></div>`;
         return;
       }
 
-      const cacheKey = 'statistik_' + App.user.email;
+      const cacheKey = 'statistik_' + App.user.username;
       if (forceRefresh !== true) {
         const cached = AppCache.get(cacheKey);
         if (cached) {
           tampilkanBerandaGuru(cached);
-          loadJadwalGuru(); // Muat jadwal (dari AppCache atau GAS, background)
+          loadJadwalGuru(); 
           return;
         }
       }
 
       showLoading(true);
 
-      google.script.run
-        .withSuccessHandler(function (r) {
-          showLoading(false);
-          if (!r.success) {
-            document.getElementById('beranda').innerHTML = '<div class="form-section"><p>Gagal memuat statistik</p></div>';
-            return;
+      try {
+        const semuaKelas = [...App.guruData.kelasReguler, ...App.guruData.kelasMC];
+        let statistik = [];
+        
+        // Hanya query jika ada kelas
+        if (semuaKelas.length > 0) {
+          const { data: siswaData, error } = await supaClient
+            .from('data_siswa')
+            .select('kelas');
+            
+          if (error) throw error;
+          
+          if (siswaData) {
+            // Hitung siswa per kelas
+            const countMap = {};
+            siswaData.forEach(s => {
+              if (s.kelas) {
+                countMap[s.kelas] = (countMap[s.kelas] || 0) + 1;
+              }
+            });
+            
+            semuaKelas.forEach(kelas => {
+              statistik.push({
+                kelas: kelas,
+                jumlah: countMap[kelas] || 0
+              });
+            });
           }
-          AppCache.set(cacheKey, r, 10);
-          tampilkanBerandaGuru(r);
-          loadJadwalGuru(); // Muat jadwal setelah statistik tampil
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-          showError('Gagal memuat statistik: ' + e);
-        })
-        .getStatistikKelas(App.user.email);
+        }
+        
+        const result = {
+          success: true,
+          nama: App.guruData.nama,
+          statistik: statistik
+        };
+        
+        AppCache.set(cacheKey, result, 10);
+        showLoading(false);
+        tampilkanBerandaGuru(result);
+        loadJadwalGuru();
+        
+      } catch (err) {
+        showLoading(false);
+        console.error("Gagal memuat statistik", err);
+        // Tetap tampilkan beranda walaupun statistik gagal
+        tampilkanBerandaGuru({ nama: App.guruData.nama, statistik: [] });
+        loadJadwalGuru();
+      }
     }
 
     function tampilkanBerandaGuru(r) {
@@ -2311,38 +2343,34 @@
     // =============================================================
     // Lazy load jadwal — berjalan di background, aman saat pindah menu
     // =============================================================
-    function loadJadwalGuru() {
-      const email    = App.user.email;
-      const cacheKey = 'jadwal_guru_' + email;
+    async function loadJadwalGuru() {
+      const username = App.user.username;
+      const nama = App.user.nama;
+      const cacheKey = 'jadwal_guru_' + username;
       const cached   = AppCache.get(cacheKey);
 
       if (cached !== null && cached !== undefined) {
-        // Data sudah ada di AppCache — render langsung
         renderJadwalDom(cached);
         return;
       }
 
-      // Tidak ada di cache — panggil GAS (berjalan background, tidak block UI)
-      google.script.run
-        .withSuccessHandler(function (r) {
-          if (r && r.success) {
-            // SELALU simpan ke AppCache terlebih dahulu
-            // (berlaku meski user sudah pindah menu — akan dipakai saat kembali ke beranda)
-            AppCache.set(cacheKey, r.jadwal, 60); // Cache 60 menit
-            renderJadwalDom(r.jadwal);
-          } else {
-            // Jadwal gagal dimuat — tampilkan pesan kecil, jangan overlay error
-            const el = document.getElementById('jadwalSection');
-            if (el) el.innerHTML = '<p style="color:#aaa; font-size:13px;">⚠️ Jadwal tidak dapat dimuat saat ini.</p>';
-          }
-        })
-        .withFailureHandler(function (e) {
-          // Silent fail — tidak tampilkan overlay error agar tidak mengganggu
-          console.warn('[Jadwal] Gagal:', e);
-          const el = document.getElementById('jadwalSection');
-          if (el) el.innerHTML = '<p style="color:#aaa; font-size:13px;">⚠️ Jadwal tidak dapat dimuat saat ini.</p>';
-        })
-        .getJadwalGuru(email);
+      try {
+        // Asumsi struktur tabel jadwal: nama_guru, hari, jam, kelas, mapel
+        const { data, error } = await supaClient
+          .from('jadwal')
+          .select('hari, jam, kelas, mapel')
+          .ilike('nama_guru', `%${nama}%`)
+          .order('jam', { ascending: true });
+          
+        if (error) throw error;
+        
+        AppCache.set(cacheKey, data || [], 60); // Cache 60 menit
+        renderJadwalDom(data || []);
+      } catch (err) {
+        console.warn('[Jadwal] Gagal:', err);
+        const el = document.getElementById('jadwalSection');
+        if (el) el.innerHTML = '<p style="color:#aaa; font-size:13px;">⚠️ Jadwal tidak dapat dimuat saat ini.</p>';
+      }
     }
 
     function renderJadwalDom(jadwal) {
