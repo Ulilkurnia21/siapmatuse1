@@ -8610,7 +8610,7 @@
 
     // --- Inisialisasi Supabase ---
     const supabaseUrl = 'https://tywjwpdyctqttqqrdrgi.supabase.co';
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5d2p3cGR5Y3RxdHRxcXJkcmdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5ODMzNjcsImV4cCI6MjEwMDU1OTM2N30.UTUhP8gVpdQiSswVY-tgFp2K0jPEydYqGw9c0BDt8HU';
+    const supabaseKey = 'sb_publishable_BJborE-F0mhU9Nns7BlyNw_kEOUs4OE';
     const supaClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
     async function handleLogin(event) {
@@ -8629,6 +8629,14 @@
           .eq('username', user)
           .eq('password', pass);
         
+        if (error) {
+          console.error("SUPABASE ERROR 1:", error);
+          showCustomAlert('Error Supabase: ' + error.message, 'error');
+          document.getElementById('loginBtn').innerText = 'Masuk ke Aplikasi';
+          document.getElementById('loginBtn').disabled = false;
+          return;
+        }
+
         let foundUser = null;
         let role = '';
 
@@ -8643,6 +8651,14 @@
             .eq('username', user)
             .eq('password', pass);
           
+          if (resPimpinan.error) {
+            console.error("SUPABASE ERROR 2:", resPimpinan.error);
+            showCustomAlert('Error Supabase: ' + resPimpinan.error.message, 'error');
+            document.getElementById('loginBtn').innerText = 'Masuk ke Aplikasi';
+            document.getElementById('loginBtn').disabled = false;
+            return;
+          }
+
           if (resPimpinan.data && resPimpinan.data.length > 0) {
             foundUser = resPimpinan.data[0];
             role = foundUser.role || 'Pimpinan';
