@@ -8611,7 +8611,7 @@
     // --- Inisialisasi Supabase ---
     const supabaseUrl = 'https://tywjwpdyctqttqqrdrgi.supabase.co';
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5d2p3cGR5Y3RxdHRxcXJkcmdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5ODMzNjcsImV4cCI6MjEwMDU1OTM2N30.UTUhP8gVpdQiSswVY-tgFp2K0jPEydYqGw9c0BDt8HU';
-    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    const supaClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
     async function handleLogin(event) {
       event.preventDefault();
@@ -8623,7 +8623,7 @@
 
       try {
         // Cek login ke tabel data_guru
-        let { data, error } = await supabase
+        let { data, error } = await supaClient
           .from('data_guru')
           .select('*')
           .eq('username', user)
@@ -8637,7 +8637,7 @@
           role = foundUser.role || 'Guru'; // Default guru
         } else {
           // Jika tidak ada di data_guru, cari di data_pimpinan
-          let resPimpinan = await supabase
+          let resPimpinan = await supaClient
             .from('data_pimpinan')
             .select('*')
             .eq('username', user)
