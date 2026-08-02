@@ -193,12 +193,12 @@ async function downloadLaporanGuru() {
               </tr>
               <tr>
                 ${headerKolom}
-                <th class="rekap-col" style="width:25px;" title="Hadir">H</th>
-                <th class="rekap-col" style="width:25px;" title="Sakit">S</th>
-                <th class="rekap-col" style="width:25px;" title="Izin">I</th>
-                <th class="rekap-col" style="width:25px;" title="Alpha">A</th>
-                <th class="rekap-col" style="width:25px;" title="Cabut">C</th>
-                <th class="rekap-col" style="width:25px;" title="Terlambat">T</th>
+                <th style="width:25px;" title="Hadir">H</th>
+                <th style="width:25px;" title="Sakit">S</th>
+                <th style="width:25px;" title="Izin">I</th>
+                <th style="width:25px;" title="Alpha">A</th>
+                <th style="width:25px;" title="Cabut">C</th>
+                <th style="width:25px;" title="Terlambat">T</th>
               </tr>
             </thead>
             <tbody>
@@ -315,6 +315,13 @@ async function downloadLaporanBulanan() {
 
     const bulanNum = bulan === 'ALL' ? 'ALL' : parseInt(bulan, 10);
     const tahunNum = tahun === 'ALL' ? 'ALL' : parseInt(tahun, 10);
+
+    // 2. Ambil absensi bulanan untuk kelas ini (seluruh guru/mapel)
+    let { data: absenData, error: errAbsen } = await supaClient.from('absensi')
+      .select('*')
+      .eq('kelas', kelas);
+
+    if (errAbsen) throw errAbsen;
     
     // Group statusHarian by month
     const monthsMap = {}; // key: YYYY-MM
@@ -452,12 +459,12 @@ async function downloadLaporanBulanan() {
                 <th colspan="6">TOTAL KEHADIRAN / KETIDAKHADIRAN</th>
               </tr>
               <tr>
-                <th class="rekap-col" style="width:40px;" title="Hadir">H</th>
-                <th class="rekap-col" style="width:40px;" title="Sakit">S</th>
-                <th class="rekap-col" style="width:40px;" title="Izin">I</th>
-                <th class="rekap-col" style="width:40px;" title="Alpha">A</th>
-                <th class="rekap-col" style="width:40px;" title="Cabut">C</th>
-                <th class="rekap-col" style="width:40px;" title="Terlambat">T</th>
+                <th style="width:40px;" title="Hadir">H</th>
+                <th style="width:40px;" title="Sakit">S</th>
+                <th style="width:40px;" title="Izin">I</th>
+                <th style="width:40px;" title="Alpha">A</th>
+                <th style="width:40px;" title="Cabut">C</th>
+                <th style="width:40px;" title="Terlambat">T</th>
               </tr>
             </thead>
             <tbody>
@@ -469,12 +476,12 @@ async function downloadLaporanBulanan() {
             <td>${idx + 1}</td>
             <td>${s.nis}</td>
             <td style="text-align:left;">${s.nama}</td>
-            <td class="rekap-col" style="font-weight:bold;">${r.H}</td>
-            <td class="rekap-col" style="${r.S > 0 ? 'color:orange;' : ''}">${r.S}</td>
-            <td class="rekap-col" style="${r.I > 0 ? 'color:orange;' : ''}">${r.I}</td>
-            <td class="rekap-col" style="${r.A > 0 ? 'color:red;' : ''}">${r.A}</td>
-            <td class="rekap-col" style="${r.C > 0 ? 'color:purple;' : ''}">${r.C}</td>
-            <td class="rekap-col" style="${r.T > 0 ? 'color:blue;' : ''}">${r.T}</td>
+            <td class="rekap-col">${r.H}</td>
+            <td class="rekap-col">${r.S}</td>
+            <td class="rekap-col">${r.I}</td>
+            <td class="rekap-col">${r.A}</td>
+            <td class="rekap-col">${r.C}</td>
+            <td class="rekap-col">${r.T}</td>
           </tr>`;
         });
 
