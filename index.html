@@ -1593,14 +1593,19 @@
       
       // Petakan data dari Supabase ke struktur App.guruData yang diharapkan Frontend
       if (App.user.role.toLowerCase() === 'guru' || App.user.role.toLowerCase() === 'pimpinan') {
+        // Gabungkan kelas jika formatnya "E1, E2, F1FIS"
+        const arrKelas = App.user.profil.kelas_yang_diajar ? App.user.profil.kelas_yang_diajar.split(',').map(s => s.trim()).filter(s => s && s !== '-') : [];
+        
         App.guruData = {
           success: true,
           email: App.user.username,
           nama: App.user.nama,
           role: App.user.role,
-          kelasReguler: App.user.profil.kelas_reguler ? App.user.profil.kelas_reguler.split(',').map(s => s.trim()).filter(s => s) : [],
-          kelasMC: App.user.profil.kelas_mc ? App.user.profil.kelas_mc.split(',').map(s => s.trim()).filter(s => s) : [],
-          mapelList: App.user.profil.mapel ? App.user.profil.mapel.split(',').map(s => s.trim()).filter(s => s) : []
+          // Karena di database sekarang digabung jadi satu kolom kelas_yang_diajar
+          kelasReguler: arrKelas,
+          kelasMC: [],
+          mapelList: App.user.profil.mapel ? App.user.profil.mapel.split(',').map(s => s.trim()).filter(s => s && s !== '-') : [],
+          waliKelas: App.user.profil.wali_kelas !== '-' ? App.user.profil.wali_kelas : null
         };
       }
 
@@ -2369,11 +2374,11 @@
       }
 
       try {
-        // Asumsi struktur tabel jadwal: nama_guru, hari, jam, kelas, mapel
+        // Di tabel Supabase, kolomnya adalah 'username_guru' (bukan nama_guru)
         const { data, error } = await supaClient
           .from('jadwal')
           .select('hari, jam, kelas, mapel')
-          .ilike('nama_guru', `%${nama}%`)
+          .eq('username_guru', username)
           .order('jam', { ascending: true });
           
         if (error) throw error;
