@@ -1617,8 +1617,9 @@
       buildNavigation();
 
       let defaultMenu = 'beranda';
-      if (App.user.role === 'ortu') defaultMenu = 'orang_tua';
-      if (App.user.role === 'pimpinan') defaultMenu = 'pimpinan_beranda';
+      const roleLower = App.user.role ? App.user.role.toLowerCase() : '';
+      if (roleLower === 'ortu' || roleLower === 'orangtua' || roleLower === 'orang tua') defaultMenu = 'orang_tua';
+      if (roleLower === 'pimpinan') defaultMenu = 'pimpinan_beranda';
 
       showMenu(defaultMenu);
     }
@@ -7321,58 +7322,44 @@
     // ============================================================
     function renderOrangTua() {
       const profil = App.user.profil;
-      if (App.user.role !== 'ortu') {
+      const roleLower = App.user.role ? App.user.role.toLowerCase() : '';
+      if (roleLower !== 'ortu' && roleLower !== 'orang_tua' && roleLower !== 'orangtua' && roleLower !== 'orang tua') {
         document.getElementById('orang_tua').innerHTML = '<div class="form-section"><p>Menu ini hanya untuk Orang Tua.</p></div>';
         return;
       }
 
-      let siswaOptions = '';
-      profil.siswaList.forEach(s => {
-        siswaOptions += `<option value="${s.nis}" data-kelas="${s.kelas}">${s.nama} (${s.kelas})</option>`;
-      });
-
-      const bulanIndo = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-      const now = new Date();
-      let bulanOpt = '<option value="semua" selected>Semua Bulan</option>';
-      bulanIndo.forEach((b, i) => {
-        bulanOpt += `<option value="${i + 1}">${b}</option>`;
-      });
-
       const html = `
     <div class="form-section">
-      <h3>👋 HALO, ${profil.nama}</h3>
-      <p style="margin-bottom: 20px; color: #555; font-size: 14px;">Lihat laporan perkembangan putra/putri Anda di sini.</p>
+      <h3>👋 HALO, BAPAK/IBU WALI DARI ${profil.nama}</h3>
+      <p style="margin-bottom: 20px; color: #555; font-size: 14px;">Selamat datang di portal informasi siswa.</p>
       
-      <div class="form-grid">
-        <div class="form-group">
-          <label>Pilih Anak</label>
-          <select id="ortuChildSelect">${siswaOptions}</select>
+      <div style="background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-top: 20px;">
+        <h4 style="color:#1565c0; margin-bottom:15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">📋 Profil Siswa</h4>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #666; font-weight: 500;">Nama Lengkap:</span>
+            <span style="font-weight: bold; color: #333;">${profil.nama}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #666; font-weight: 500;">NIS:</span>
+            <span style="font-weight: bold; color: #333;">${profil.nis}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #666; font-weight: 500;">Kelas:</span>
+            <span style="font-weight: bold; color: #333;">${profil.kelas}</span>
+          </div>
         </div>
-        <div class="form-group">
-          <label>Bulan</label>
-          <select id="ortuBulan">${bulanOpt}</select>
-        </div>
-        <div class="form-group">
-          <label>Tahun</label>
-          <input type="number" id="ortuTahun" value="${now.getFullYear()}" class="form-control">
-        </div>
-        <div class="form-group">
-          <label>&nbsp;</label>
-          <button id="btnPreviewOrtu" class="btn btn-success" onclick="previewLaporanOrtu()" style="width:100%">🔍 TAMPILKAN</button>
-        </div>
+      </div>
+
+      <div style="text-align:center; padding:30px; background:#e3f2fd; border-radius:8px; margin-top:20px;">
+        <p style="color:#1976d2; font-size:1.1rem; font-weight: 500;">🚀 Fitur Laporan Nilai & Absensi Sedang Dalam Pengembangan.</p>
       </div>
     </div>
-    
-    <div id="ortuPreviewContainer" style="display:none; margin-top:20px;" class="form-section">
-      <div id="ortuPreviewContent" style="background:#fff; border:1px solid #ddd; padding:20px; min-height:400px; border-radius:8px;">
-      </div>
-      <div class="bottom-button">
-        <button id="btnDownloadOrtu" class="btn btn-warning" onclick="downloadLaporanOrtu()">📥 DOWNLOAD PDF</button>
-      </div>
-    </div>
-  `;
+      `;
+
       document.getElementById('orang_tua').innerHTML = html;
     }
+
 
     function previewLaporanOrtu(forceRefresh = false) {
       const sel = document.getElementById('ortuChildSelect');
@@ -7717,8 +7704,9 @@
     // ============================================================
     // ============ DASHBOARD PIMPINAN (BERANDA) ==================
     // ============================================================
-    function renderPimpinanBeranda(forceRefresh = false) {
-      if (App.user.role !== 'pimpinan') return;
+    async function renderPimpinanBeranda(forceRefresh = false) {
+      const roleLower = App.user.role ? App.user.role.toLowerCase() : '';
+      if (roleLower !== 'pimpinan') return;
 
       if (forceRefresh !== true) {
         const cached = AppCache.get('dashboardPimpinanBeranda');
@@ -7730,29 +7718,82 @@
 
       showLoading(true, 'Memuat jadwal guru hari ini...');
 
-      google.script.run
-        .withSuccessHandler(function (res) {
-          showLoading(false);
+      try {
+        const hariArr = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        const todayStr = hariArr[new Date().getDay()];
 
-          if (!res.success) {
-            document.getElementById('pimpinan_beranda').innerHTML = '<div class="form-section"><p>Error: ' + res.error + '</p></div>';
-            return;
+        // 1. Ambil Jadwal Hari Ini
+        const { data: jadwalData, error: errJadwal } = await supaClient
+          .from('jadwal')
+          .select('username_guru, jam, kelas, mapel')
+          .ilike('hari', todayStr)
+          .order('jam', { ascending: true });
+
+        if (errJadwal) throw errJadwal;
+
+        // 2. Ambil Semua Data Guru untuk mapping nama
+        const { data: guruData, error: errGuru } = await supaClient
+          .from('data_guru')
+          .select('username, nama');
+
+        if (errGuru) throw errGuru;
+
+        const guruMap = {};
+        if (guruData) {
+          guruData.forEach(g => {
+            guruMap[g.username] = g.nama;
+          });
+        }
+
+        // 3. Kelompokkan jadwal yang jam nya berurutan (misal 1,2 jadi 1-2) per guru, kelas, mapel
+        let groupedJadwal = [];
+        if (jadwalData && jadwalData.length > 0) {
+          // Sort by username_guru then jam
+          jadwalData.sort((a, b) => {
+            if (a.username_guru !== b.username_guru) return a.username_guru.localeCompare(b.username_guru);
+            return parseInt(a.jam) - parseInt(b.jam);
+          });
+
+          let currentGroup = null;
+          for (let i = 0; i < jadwalData.length; i++) {
+            let row = jadwalData[i];
+            if (!currentGroup) {
+              currentGroup = { ...row, startJam: parseInt(row.jam), endJam: parseInt(row.jam) };
+            } else {
+              if (currentGroup.username_guru === row.username_guru && 
+                  currentGroup.kelas === row.kelas && 
+                  currentGroup.mapel === row.mapel && 
+                  parseInt(row.jam) === currentGroup.endJam + 1) {
+                currentGroup.endJam = parseInt(row.jam);
+              } else {
+                let jamStr = currentGroup.startJam === currentGroup.endJam ? `${currentGroup.startJam}` : `${currentGroup.startJam}-${currentGroup.endJam}`;
+                groupedJadwal.push({ nama_guru: guruMap[currentGroup.username_guru] || currentGroup.username_guru, jam: jamStr, kelas: currentGroup.kelas, mapel: currentGroup.mapel });
+                currentGroup = { ...row, startJam: parseInt(row.jam), endJam: parseInt(row.jam) };
+              }
+            }
           }
+          if (currentGroup) {
+            let jamStr = currentGroup.startJam === currentGroup.endJam ? `${currentGroup.startJam}` : `${currentGroup.startJam}-${currentGroup.endJam}`;
+            groupedJadwal.push({ nama_guru: guruMap[currentGroup.username_guru] || currentGroup.username_guru, jam: jamStr, kelas: currentGroup.kelas, mapel: currentGroup.mapel });
+          }
+        }
 
-          AppCache.set('dashboardPimpinanBeranda', res, 10);
-          tampilkanPimpinanBeranda(res);
-          // Lazy Loading Disiplin Guru
-          loadPimpinanDisiplin(res.jadwal);
-        })
-        .withFailureHandler(function (err) {
-          showLoading(false);
-          document.getElementById('pimpinan_beranda').innerHTML = '<div class="form-section"><p>Gagal memuat data: ' + err + '</p></div>';
-        })
-        .getGuruMengajarHariIni();
+        const res = {
+          success: true,
+          hari: todayStr,
+          jadwal: groupedJadwal
+        };
+
+        AppCache.set('dashboardPimpinanBeranda', res, 10);
+        showLoading(false);
+        tampilkanPimpinanBeranda(res);
+      } catch (err) {
+        showLoading(false);
+        document.getElementById('pimpinan_beranda').innerHTML = '<div class="form-section"><p>Gagal memuat data: ' + err.message + '</p></div>';
+      }
     }
 
     function tampilkanPimpinanBeranda(res) {
-      // === TABEL 1: JADWAL GURU HARI INI ===
       let tableHtml = '';
       if (res.jadwal && res.jadwal.length > 0) {
         tableHtml = `
@@ -7774,7 +7815,7 @@
           tableHtml += `
             <tr>
               <td style="text-align: center;">${idx + 1}</td>
-              <td style="font-weight: 500;">${j.namaGuru}</td>
+              <td style="font-weight: 500;">${j.nama_guru}</td>
               <td>${j.kelas}</td>
               <td>${j.mapel}</td>
               <td><span class="badge" style="background:#e3f2fd; color:#1976d2; padding:5px 10px;">${j.jam}</span></td>
@@ -7789,20 +7830,9 @@
         `;
       } else {
         tableHtml = `<div style="text-align:center; padding:30px; background:#f5f5f5; border-radius:8px; margin-top:20px;">
-          <p style="color:#666; font-size:1.1rem;">🏖️ Tidak ada guru yang dijadwalkan mengajar pada hari ${res.hari}.</p>
+          <p style="color:#666; font-size:1.1rem;">🏖️ Tidak ada jadwal mengajar pada hari ${res.hari}.</p>
         </div>`;
       }
-
-      // === CONTAINER DISIPLIN GURU ===
-      let disiplinHtml = `
-        <div id="pimpinan_disiplin_container" style="background:#fff; padding:20px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.05); margin-top:24px; text-align:center;">
-          <h4 style="color:#2e7d32; margin-bottom:16px; text-align:left;">📋 DISIPLIN GURU HARI INI</h4>
-          <div style="padding: 30px 0;">
-            <div class="spinner" style="margin: 0 auto;"></div>
-            <p style="color:#666; margin-top:15px; font-size:14px;">Menganalisis data disiplin guru...</p>
-          </div>
-        </div>
-      `;
 
       const html = `
         <div class="form-section">
@@ -7818,8 +7848,6 @@
             </h4>
             ${tableHtml}
           </div>
-
-          ${disiplinHtml}
         </div>
       `;
 
@@ -8758,6 +8786,26 @@
           if (resPimpinan.data && resPimpinan.data.length > 0) {
             foundUser = resPimpinan.data[0];
             role = foundUser.role || 'Pimpinan';
+          } else {
+            // Jika tidak ada di data_pimpinan, cari di data_siswa (Login Orang Tua)
+            let resSiswa = await supaClient
+              .from('data_siswa')
+              .select('*')
+              .eq('username', user)
+              .eq('password', pass);
+
+            if (resSiswa.error) {
+              console.error("SUPABASE ERROR 3:", resSiswa.error);
+              showCustomAlert('Error Supabase: ' + resSiswa.error.message, 'error');
+              document.getElementById('loginBtn').innerText = 'Masuk ke Aplikasi';
+              document.getElementById('loginBtn').disabled = false;
+              return;
+            }
+
+            if (resSiswa.data && resSiswa.data.length > 0) {
+              foundUser = resSiswa.data[0];
+              role = 'Ortu';
+            }
           }
         }
 
