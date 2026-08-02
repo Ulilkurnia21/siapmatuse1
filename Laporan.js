@@ -36,16 +36,17 @@ async function downloadLaporanGuru() {
 
   try {
     const isMC = !KELAS_REGULER.includes(kelas);
-    const tableNameSiswa = isMC ? 'mapel_moving_siswa' : 'data_siswa';
-
-    // 1. Ambil data siswa
-    let { data: siswaData, error: errSiswa } = await supaClient
-      .from(tableNameSiswa)
-      .select('nis, nama')
-      .eq('kelas', kelas)
-      .order('nama', { ascending: true });
-
-    if (errSiswa) throw errSiswa;
+    let siswaData = [];
+    if (isMC) {
+      let { data, error: errSiswa } = await supaClient.from('pilihan_moving_class').select('nis, nama, mapel_moving');
+      if (errSiswa) throw errSiswa;
+      siswaData = (data || []).filter(s => s.mapel_moving && s.mapel_moving.split(',').map(m => m.trim()).includes(kelas));
+      siswaData.sort((a,b) => a.nama.localeCompare(b.nama));
+    } else {
+      let { data, error: errSiswa } = await supaClient.from('data_siswa').select('nis, nama').eq('kelas', kelas).order('nama', { ascending: true });
+      if (errSiswa) throw errSiswa;
+      siswaData = data || [];
+    }
     if (!siswaData || siswaData.length === 0) {
       throw new Error('Tidak ada data siswa di kelas ' + kelas);
     }
@@ -100,19 +101,22 @@ async function downloadLaporanGuru() {
       return new Date(y1,m1-1,d1) - new Date(y2,m2-1,d2);
     });
 
+    const monthsMap = {};
+    tanggalList.forEach(tgl => {
+      const [dd, mm, yyyy] = tgl.split('/');
+      const key = bulan === 'ALL' ? `${yyyy}-${mm}` : 'current';
+      if (!monthsMap[key]) monthsMap[key] = { mm: parseInt(mm, 10), yyyy: parseInt(yyyy, 10), dates: [] };
+      monthsMap[key].dates.push(tgl);
+    });
+    
+    const sortedMonths = Object.values(monthsMap).sort((a,b) => {
+      if (a.yyyy !== b.yyyy) return a.yyyy - b.yyyy;
+      return a.mm - b.mm;
+    });
+
     // 3. Bangun HTML
     const namaGuru = App.user.nama || App.user.username;
     const nipGuru = App.user.profil?.nip || '-';
-    
-    let headerKolom = '';
-    tanggalList.forEach(tgl => {
-      const [dd,mm,yyyy] = tgl.split('/');
-      const tglObj = new Date(yyyy, mm-1, dd);
-      const hari = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][tglObj.getDay()];
-      headerKolom += `<th>${hari}<br>${dd}/${mm}</th>`;
-    });
-
-    const mNama = bulan === 'ALL' ? 'Semua Bulan' : ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][bulanNum-1];
 
     let html = `
     <html>
@@ -139,107 +143,118 @@ async function downloadLaporanGuru() {
       </style>
     </head>
     <body>
-      ${KOP_SURAT_LAPORAN}
-      
-      <div class="header">
-        <h3 style="text-align:center; margin-bottom:20px;">REKAPITULASI ABSENSI GURU MATA PELAJARAN</h3>
-        
-        <div class="header-item">
-          <span class="label">Guru</span><span class="value">: ${namaGuru}</span>
-        </div>
-        <div class="header-item">
-          <span class="label">NIP</span><span class="value">: ${nipGuru}</span>
-        </div>
-        <div class="header-item">
-          <span class="label">Mata Pelajaran</span><span class="value">: ${mapel}</span>
-        </div>
-        <div class="header-item">
-          <span class="label">Kelas</span><span class="value">: ${kelas}</span>
-        </div>
-        <div class="header-item">
-          <span class="label">Bulan/Tahun</span><span class="value">: ${mNama} ${tahunNum}</span>
-        </div>
-      </div>
-      
-      <table>
-        <thead>
-          <tr>
-            <th rowspan="2" style="width:30px;">NO</th>
-            <th rowspan="2" style="width:50px;">NIS</th>
-            <th rowspan="2" style="width:200px;">NAMA SISWA</th>
-            ${tanggalList.length > 0 ? `<th colspan="${tanggalList.length}">TANGGAL PERTEMUAN</th>` : '<th>TANGGAL (Belum ada data)</th>'}
-            <th colspan="6">TOTAL</th>
-          </tr>
-          <tr>
-            ${headerKolom}
-            <th class="rekap-col" style="width:25px;" title="Hadir">H</th>
-            <th class="rekap-col" style="width:25px;" title="Sakit">S</th>
-            <th class="rekap-col" style="width:25px;" title="Izin">I</th>
-            <th class="rekap-col" style="width:25px;" title="Alpha">A</th>
-            <th class="rekap-col" style="width:25px;" title="Cabut">C</th>
-            <th class="rekap-col" style="width:25px;" title="Terlambat">T</th>
-          </tr>
-        </thead>
-        <tbody>
     `;
 
-    siswaData.forEach((s, idx) => {
-      html += `<tr>
-        <td>${idx + 1}</td>
-        <td>${s.nis}</td>
-        <td style="text-align:left;">${s.nama}</td>`;
-        
-      let h=0, a=0, i=0, sakit=0, c=0, t=0;
-      
-      if (tanggalList.length === 0) {
-        html += `<td>-</td>`;
-      } else {
-        tanggalList.forEach(tgl => {
-          let status = dataPerTanggal[tgl]?.[s.nis];
-          if (!status) status = 'H'; // Default Hadir
-          
-          if (status === 'H') h++;
-          else if (status === 'A') a++;
-          else if (status === 'I') i++;
-          else if (status === 'S') sakit++;
-          else if (status === 'C') c++;
-          else if (status === 'T') t++;
-          
-          let color = '';
-          if (status === 'A') color = 'color:red; font-weight:bold;';
-          else if (status === 'S' || status === 'I') color = 'color:orange; font-weight:bold;';
-          else if (status === 'C') color = 'color:purple; font-weight:bold;';
-          else if (status === 'T') color = 'color:blue; font-weight:bold;';
-          
-          html += `<td style="${color}">${status !== 'H' ? status : '.'}</td>`;
+    if (sortedMonths.length === 0) {
+      html += `<div style="text-align:center; margin-top:50px; font-size:16px;">Belum ada data absensi untuk periode ini.</div></body></html>`;
+    } else {
+      sortedMonths.forEach((mObj, index) => {
+        let headerKolom = '';
+        mObj.dates.forEach(tgl => {
+          const [dd,mm,yyyy] = tgl.split('/');
+          const tglObj = new Date(yyyy, mm-1, dd);
+          const hari = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][tglObj.getDay()];
+          headerKolom += `<th>${hari}<br>${dd}/${mm}</th>`;
         });
-      }
-      
-      html += `
-        <td class="rekap-col">${h}</td>
-        <td class="rekap-col">${sakit}</td>
-        <td class="rekap-col">${i}</td>
-        <td class="rekap-col">${a}</td>
-        <td class="rekap-col">${c}</td>
-        <td class="rekap-col">${t}</td>
-      </tr>`;
-    });
 
-    html += `
-        </tbody>
-      </table>
+        const mNama = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][mObj.mm-1];
+        
+        html += `
+          ${KOP_SURAT_LAPORAN}
+          
+          <div class="header">
+            <h3 style="text-align:center; margin-bottom:20px;">REKAPITULASI ABSENSI GURU MATA PELAJARAN</h3>
+            
+            <div class="header-item">
+              <span class="label">Guru</span><span class="value">: ${namaGuru}</span>
+            </div>
+            <div class="header-item">
+              <span class="label">NIP</span><span class="value">: ${nipGuru}</span>
+            </div>
+            <div class="header-item">
+              <span class="label">Mata Pelajaran</span><span class="value">: ${mapel}</span>
+            </div>
+            <div class="header-item">
+              <span class="label">Kelas</span><span class="value">: ${kelas}</span>
+            </div>
+            <div class="header-item">
+              <span class="label">Periode</span><span class="value">: ${mNama} ${mObj.yyyy}</span>
+            </div>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th rowspan="2" style="width:30px;">NO</th>
+                <th rowspan="2" style="width:50px;">NIS</th>
+                <th rowspan="2" style="width:200px;">NAMA SISWA</th>
+                <th colspan="${mObj.dates.length}">TANGGAL PERTEMUAN</th>
+                <th colspan="6">TOTAL</th>
+              </tr>
+              <tr>
+                ${headerKolom}
+                <th class="rekap-col" style="width:25px;" title="Hadir">H</th>
+                <th class="rekap-col" style="width:25px;" title="Sakit">S</th>
+                <th class="rekap-col" style="width:25px;" title="Izin">I</th>
+                <th class="rekap-col" style="width:25px;" title="Alpha">A</th>
+                <th class="rekap-col" style="width:25px;" title="Cabut">C</th>
+                <th class="rekap-col" style="width:25px;" title="Terlambat">T</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        siswaData.forEach((s, idx) => {
+          html += `<tr>
+            <td>${idx + 1}</td>
+            <td>${s.nis}</td>
+            <td style="text-align:left;">${s.nama}</td>`;
+            
+          let h=0, a=0, i=0, sakit=0, c=0, t=0;
+          
+          mObj.dates.forEach(tgl => {
+            let status = dataPerTanggal[tgl]?.[s.nis];
+            if (!status) status = 'H'; // Default Hadir
+            
+            if (status === 'H') h++;
+            else if (status === 'A') a++;
+            else if (status === 'I') i++;
+            else if (status === 'S') sakit++;
+            else if (status === 'C') c++;
+            else if (status === 'T') t++;
+            
+            html += `<td>${status}</td>`;
+          });
+          
+          html += `
+            <td class="rekap-col">${h}</td>
+            <td class="rekap-col">${sakit}</td>
+            <td class="rekap-col">${i}</td>
+            <td class="rekap-col">${a}</td>
+            <td class="rekap-col">${c}</td>
+            <td class="rekap-col">${t}</td>
+          </tr>`;
+        });
+
+        html += `
+            </tbody>
+          </table>
+          
+          <div class="ttd">
+            <p>Silayang, ${new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
+            <p>Guru Mata Pelajaran,</p>
+            <div>
+              <b><u>${namaGuru}</u></b><br>
+              NIP. ${nipGuru}
+            </div>
+          </div>
+        `;
+
+        if (index < sortedMonths.length - 1) html += `<div class="page-break"></div>`;
+      });
       
-      <div class="ttd">
-        <p>Silayang, ${new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
-        <p>Guru Mata Pelajaran,</p>
-        <div>
-          <b><u>${namaGuru}</u></b><br>
-          NIP. ${nipGuru}
-        </div>
-      </div>
-    </body>
-    </html>
-    `;
+      html += `</body></html>`;
+    }
 
     if (btn) {
       btn.disabled = false;
@@ -283,36 +298,27 @@ async function downloadLaporanBulanan() {
 
   try {
     const isMC = !KELAS_REGULER.includes(kelas);
-    const tableNameSiswa = isMC ? 'mapel_moving_siswa' : 'data_siswa';
-
-    // 1. Ambil data siswa
-    let { data: siswaData, error: errSiswa } = await supaClient
-      .from(tableNameSiswa)
-      .select('nis, nama')
-      .eq('kelas', kelas)
-      .order('nama', { ascending: true });
-
-    if (errSiswa) throw errSiswa;
+    let siswaData = [];
+    if (isMC) {
+      let { data, error: errSiswa } = await supaClient.from('pilihan_moving_class').select('nis, nama, mapel_moving');
+      if (errSiswa) throw errSiswa;
+      siswaData = (data || []).filter(s => s.mapel_moving && s.mapel_moving.split(',').map(m => m.trim()).includes(kelas));
+      siswaData.sort((a,b) => a.nama.localeCompare(b.nama));
+    } else {
+      let { data, error: errSiswa } = await supaClient.from('data_siswa').select('nis, nama').eq('kelas', kelas).order('nama', { ascending: true });
+      if (errSiswa) throw errSiswa;
+      siswaData = data || [];
+    }
     if (!siswaData || siswaData.length === 0) {
       throw new Error('Tidak ada data siswa di kelas ' + kelas);
     }
 
-    const rekap = {};
-    siswaData.forEach(s => {
-      rekap[s.nis] = { nama: s.nama, H: 0, A: 0, I: 0, S: 0, C: 0, T: 0 };
-    });
-
-    // 2. Ambil absensi bulanan untuk kelas ini (seluruh guru/mapel)
-    let { data: absenData, error: errAbsen } = await supaClient.from('absensi')
-      .select('*')
-      .eq('kelas', kelas);
-
-    if (errAbsen) throw errAbsen;
-
-    const bulanNum = parseInt(bulan);
-    const tahunNum = parseInt(tahun);
-    const statusHarian = {}; // statusHarian[nis][tglStr] = worst_status
-
+    const bulanNum = bulan === 'ALL' ? 'ALL' : parseInt(bulan, 10);
+    const tahunNum = tahun === 'ALL' ? 'ALL' : parseInt(tahun, 10);
+    
+    // Group statusHarian by month
+    const monthsMap = {}; // key: YYYY-MM
+    
     if (absenData) {
       absenData.forEach(row => {
         const [yyyy, mm, dd] = row.tanggal.split('-');
@@ -322,46 +328,39 @@ async function downloadLaporanBulanan() {
         const status = row.status;
 
         // Skip jika nis tidak terdaftar di kelas ini
-        if (!rekap[nis]) return;
+        const isSiswaExist = siswaData.some(s => s.nis === nis);
+        if (!isSiswaExist) return;
         
-        if (thn === tahunNum && bln === bulanNum) {
-          const tglStr = row.tanggal; // YYYY-MM-DD
+        const isTahunMatch = tahunNum === 'ALL' || thn === tahunNum;
+        const isBulanMatch = bulanNum === 'ALL' || bln === bulanNum;
+
+        if (isTahunMatch && isBulanMatch) {
+          const key = bulanNum === 'ALL' ? `${yyyy}-${mm}` : 'current';
+          if (!monthsMap[key]) {
+            monthsMap[key] = {
+              yyyy: thn,
+              mm: bln,
+              statusHarian: {}
+            };
+          }
           
-          if (!statusHarian[nis]) statusHarian[nis] = {};
-          const statusLama = statusHarian[nis][tglStr];
+          if (!monthsMap[key].statusHarian[nis]) monthsMap[key].statusHarian[nis] = {};
+          
+          const tglStr = row.tanggal;
+          const statusLama = monthsMap[key].statusHarian[nis][tglStr];
           
           // Simpan hanya jika status baru lebih buruk
           if (!statusLama || getPrioritasStatus(status) > getPrioritasStatus(statusLama)) {
-            statusHarian[nis][tglStr] = status;
+            monthsMap[key].statusHarian[nis][tglStr] = status;
           }
         }
       });
     }
 
-    // 3. Hitung rekap harian ke dalam total bulanan
-    for (const nis in statusHarian) {
-      for (const tglStr in statusHarian[nis]) {
-        const status = statusHarian[nis][tglStr];
-        if (status === 'H') rekap[nis].H++;
-        else if (status === 'A') rekap[nis].A++;
-        else if (status === 'I') rekap[nis].I++;
-        else if (status === 'S') rekap[nis].S++;
-        else if (status === 'C') rekap[nis].C++;
-        else if (status === 'T') rekap[nis].T++;
-      }
-    }
-
-    // Ubah jadi array
-    const rekapArray = siswaData.map(s => ({
-      nis: s.nis,
-      nama: s.nama,
-      H: rekap[s.nis].H,
-      S: rekap[s.nis].S,
-      I: rekap[s.nis].I,
-      A: rekap[s.nis].A,
-      C: rekap[s.nis].C,
-      T: rekap[s.nis].T,
-    }));
+    const sortedMonths = Object.values(monthsMap).sort((a,b) => {
+      if (a.yyyy !== b.yyyy) return a.yyyy - b.yyyy;
+      return a.mm - b.mm;
+    });
 
     // Ambil data Wali Kelas
     let namaWali = '(Kosong / Tidak Ditemukan)';
@@ -372,9 +371,6 @@ async function downloadLaporanBulanan() {
       nipWali = guruData[0].nip || '-';
     }
 
-    const mNama = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][bulanNum-1];
-
-    // 4. Bangun HTML
     let html = `
     <html>
     <head>
@@ -401,77 +397,111 @@ async function downloadLaporanBulanan() {
       </style>
     </head>
     <body>
-      ${KOP_SURAT_LAPORAN}
-      
-      <div class="header">
-        <h3 style="text-align:center; margin-bottom:20px; text-transform:uppercase;">REKAPITULASI ABSENSI BULANAN KELAS</h3>
+    `;
+
+    if (sortedMonths.length === 0) {
+      html += `<div style="text-align:center; margin-top:50px; font-size:16px;">Belum ada data absensi untuk periode ini.</div></body></html>`;
+    } else {
+      sortedMonths.forEach((mObj, index) => {
+        const mNama = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][mObj.mm-1];
         
-        <div class="header-item">
-          <span class="label">Kelas</span><span class="value">: ${kelas}</span>
-        </div>
-        <div class="header-item">
-          <span class="label">Wali Kelas</span><span class="value">: ${namaWali}</span>
-        </div>
-        <div class="header-item">
-          <span class="label">Bulan/Tahun</span><span class="value">: ${mNama} ${tahunNum}</span>
-        </div>
-      </div>
-      
-      <table>
-        <thead>
-          <tr>
-            <th rowspan="2" style="width:30px;">NO</th>
-            <th rowspan="2" style="width:80px;">NIS</th>
-            <th rowspan="2">NAMA SISWA</th>
-            <th colspan="6">TOTAL KEHADIRAN / KETIDAKHADIRAN</th>
-          </tr>
-          <tr>
-            <th class="rekap-col" style="width:40px;" title="Hadir">H</th>
-            <th class="rekap-col" style="width:40px;" title="Sakit">S</th>
-            <th class="rekap-col" style="width:40px;" title="Izin">I</th>
-            <th class="rekap-col" style="width:40px;" title="Alpha">A</th>
-            <th class="rekap-col" style="width:40px;" title="Cabut">C</th>
-            <th class="rekap-col" style="width:40px;" title="Terlambat">T</th>
-          </tr>
-        </thead>
-        <tbody>
-    `;
+        // Hitung rekap untuk bulan ini
+        const rekap = {};
+        siswaData.forEach(s => {
+          rekap[s.nis] = { H: 0, A: 0, I: 0, S: 0, C: 0, T: 0 };
+        });
 
-    rekapArray.forEach((r, idx) => {
-      html += `<tr>
-        <td>${idx + 1}</td>
-        <td>${r.nis}</td>
-        <td style="text-align:left;">${r.nama}</td>
-        <td class="rekap-col" style="font-weight:bold;">${r.H}</td>
-        <td class="rekap-col" style="${r.S > 0 ? 'color:orange;' : ''}">${r.S}</td>
-        <td class="rekap-col" style="${r.I > 0 ? 'color:orange;' : ''}">${r.I}</td>
-        <td class="rekap-col" style="${r.A > 0 ? 'color:red;' : ''}">${r.A}</td>
-        <td class="rekap-col" style="${r.C > 0 ? 'color:purple;' : ''}">${r.C}</td>
-        <td class="rekap-col" style="${r.T > 0 ? 'color:blue;' : ''}">${r.T}</td>
-      </tr>`;
-    });
+        const statusHarian = mObj.statusHarian;
+        for (const nis in statusHarian) {
+          for (const tglStr in statusHarian[nis]) {
+            const status = statusHarian[nis][tglStr];
+            if (rekap[nis]) {
+              if (status === 'H') rekap[nis].H++;
+              else if (status === 'A') rekap[nis].A++;
+              else if (status === 'I') rekap[nis].I++;
+              else if (status === 'S') rekap[nis].S++;
+              else if (status === 'C') rekap[nis].C++;
+              else if (status === 'T') rekap[nis].T++;
+            }
+          }
+        }
+        
+        html += `
+          ${KOP_SURAT_LAPORAN}
+          
+          <div class="header">
+            <h3 style="text-align:center; margin-bottom:20px; text-transform:uppercase;">REKAPITULASI ABSENSI BULANAN KELAS</h3>
+            
+            <div class="header-item">
+              <span class="label">Kelas</span><span class="value">: ${kelas}</span>
+            </div>
+            <div class="header-item">
+              <span class="label">Wali Kelas</span><span class="value">: ${namaWali}</span>
+            </div>
+            <div class="header-item">
+              <span class="label">Periode</span><span class="value">: ${mNama} ${mObj.yyyy}</span>
+            </div>
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th rowspan="2" style="width:30px;">NO</th>
+                <th rowspan="2" style="width:80px;">NIS</th>
+                <th rowspan="2">NAMA SISWA</th>
+                <th colspan="6">TOTAL KEHADIRAN / KETIDAKHADIRAN</th>
+              </tr>
+              <tr>
+                <th class="rekap-col" style="width:40px;" title="Hadir">H</th>
+                <th class="rekap-col" style="width:40px;" title="Sakit">S</th>
+                <th class="rekap-col" style="width:40px;" title="Izin">I</th>
+                <th class="rekap-col" style="width:40px;" title="Alpha">A</th>
+                <th class="rekap-col" style="width:40px;" title="Cabut">C</th>
+                <th class="rekap-col" style="width:40px;" title="Terlambat">T</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
 
-    html += `
-        </tbody>
-      </table>
-      
-      <div class="ttd">
-        <div>
-          <p>Mengetahui,</p>
-          <p>Kepala Sekolah</p>
-          <div class="sign-space">Nurmali, S.Pd.</div>
-          <p>NIP. 197410042006041003</p>
-        </div>
-        <div>
-          <p>Silayang, ${new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
-          <p>Wali Kelas</p>
-          <div class="sign-space">${namaWali}</div>
-          <p>NIP. ${nipWali}</p>
-        </div>
-      </div>
-    </body>
-    </html>
-    `;
+        siswaData.forEach((s, idx) => {
+          const r = rekap[s.nis];
+          html += `<tr>
+            <td>${idx + 1}</td>
+            <td>${s.nis}</td>
+            <td style="text-align:left;">${s.nama}</td>
+            <td class="rekap-col" style="font-weight:bold;">${r.H}</td>
+            <td class="rekap-col" style="${r.S > 0 ? 'color:orange;' : ''}">${r.S}</td>
+            <td class="rekap-col" style="${r.I > 0 ? 'color:orange;' : ''}">${r.I}</td>
+            <td class="rekap-col" style="${r.A > 0 ? 'color:red;' : ''}">${r.A}</td>
+            <td class="rekap-col" style="${r.C > 0 ? 'color:purple;' : ''}">${r.C}</td>
+            <td class="rekap-col" style="${r.T > 0 ? 'color:blue;' : ''}">${r.T}</td>
+          </tr>`;
+        });
+
+        html += `
+            </tbody>
+          </table>
+          
+          <div class="ttd">
+            <div>
+              <p>Mengetahui,</p>
+              <p>Kepala Sekolah</p>
+              <div class="sign-space">Nurmali, S.Pd.</div>
+              <p>NIP. 197410042006041003</p>
+            </div>
+            <div>
+              <p>Silayang, ${new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
+              <p>Wali Kelas</p>
+              <div class="sign-space">${namaWali}</div>
+              <p>NIP. ${nipWali}</p>
+            </div>
+          </div>
+        `;
+
+        if (index < sortedMonths.length - 1) html += `<div class="page-break"></div>`;
+      });
+      html += `</body></html>`;
+    }
 
     if (btn) {
       btn.disabled = false;
