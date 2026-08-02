@@ -7165,45 +7165,176 @@
         btn.disabled = true;
         btn.innerHTML = '⏳ MENYIAPKAN...';
       } else {
-        showLoading(true, 'Sedang menyiapkan laporan, mohon tunggu (maksimal 3 menit)...');
+        showLoading(true, 'Sedang menyiapkan laporan, mohon tunggu...');
       }
 
-      const timeoutId = setTimeout(() => {
+      const KOP_SURAT = `
+        <div style="text-align:center; margin-bottom:20px;">
+          <img src="https://i.ibb.co.com/q3stPtZF/KOP.png" 
+               style="width:100%; max-width:800px; height:auto; margin:0 auto; display:block; border:0;">
+        </div>
+      `;
+
+      let query = supaClient.from('jurnal').select('*').eq('username_guru', App.user.username);
+      
+      query.then(({data: allData, error}) => {
         if (btn) {
           btn.disabled = false;
           btn.innerHTML = '📥 DOWNLOAD PDF';
         } else {
           showLoading(false);
         }
-        showError('Permintaan waktu habis (Timeout). Data mungkin terlalu besar atau koneksi lambat.');
-      }, 180000);
 
-      google.script.run
-        .withSuccessHandler(function (r) {
-          clearTimeout(timeoutId);
-          if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '📥 DOWNLOAD PDF';
+        if (error) {
+          showError('Gagal mengambil data dari Supabase: ' + error.message);
+          return;
+        }
+
+        const namaGuru = App.user.nama || App.user.username;
+        const nipGuru = App.user.profil?.nip || '-';
+        const bulanNum = bulan === 'semua' ? 'semua' : parseInt(bulan);
+        const tahunNum = parseInt(tahun);
+        
+        let dataJurnal = [];
+        allData.forEach(row => {
+          const tgl = new Date(row.tanggal);
+          if (tgl.getFullYear() !== tahunNum) return;
+          if (bulanNum !== 'semua' && (tgl.getMonth() + 1) !== bulanNum) return;
+          
+          dataJurnal.push(row);
+        });
+
+        // Urutkan berdasarkan tanggal ascending
+        dataJurnal.sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal));
+
+        let html = `
+        <html>
+        <head>
+          <style>
+            @page { size: A4 landscape; margin: 1.5cm; }
+            @media print {
+              * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              .page-break { page-break-after: always; }
+            }
+            body { font-family: Arial, sans-serif; font-size: 11px; margin: 0; padding: 0; }
+            .kop { text-align:center; margin-bottom:15px; }
+            .kop img { max-width:100%; height:auto; }
+            h2 { text-align:center; color:#2e7d32; margin:10px 0; font-size:16px; text-transform:uppercase; }
+            .info { margin:15px 0; width:100%; }
+            .info table { width:100%; border-collapse: collapse; }
+            .info td { border: none; padding: 3px 5px; }
+            .info td.label { width: 100px; font-weight: bold; }
+            .info td.separator { width: 15px; text-align: center; }
+            table.data { width:100%; border-collapse: collapse; margin:20px 0; }
+            table.data th { 
+              background: #2e7d32 !important; 
+              color: white !important; 
+              padding: 8px; 
+              text-align: center;
+              font-weight: bold;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            table.data td { border: 1px solid #a5d6a7; padding: 6px; vertical-align: top; }
+            .ttd { margin-top: 50px; text-align: right; }
+            .ttd div { margin-top: 60px; }
+            .page-break { page-break-after: always; }
+          </style>
+        </head>
+        <body>
+        `;
+
+        const monthsToProcess = bulanNum === 'semua' ? [1,2,3,4,5,6,7,8,9,10,11,12] : [bulanNum];
+        const validMonths = monthsToProcess.filter(m => {
+           return dataJurnal.some(j => (new Date(j.tanggal).getMonth() + 1) === m);
+        });
+
+        if (validMonths.length === 0) {
+           validMonths.push(bulanNum === 'semua' ? 1 : bulanNum); 
+        }
+
+        const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+        validMonths.forEach((m, idx) => {
+          const monthData = dataJurnal.filter(j => (new Date(j.tanggal).getMonth() + 1) === m);
+          const mNama = ['Januari','Februari','Maret','April','Mei','Juni',
+                         'Juli','Agustus','September','Oktober','November','Desember'][m-1];
+          
+          const pageBreakClass = (idx < validMonths.length - 1) ? 'class="page-break"' : '';
+          
+          html += `
+          <div ${pageBreakClass}>
+            ${KOP_SURAT}
+            <h2>JURNAL GURU</h2>
+            <div class="info">
+              <table>
+                <tr><td class="label">Nama Guru</td><td class="separator">:</td><td>${namaGuru}</td></tr>
+                <tr><td class="label">NIP</td><td class="separator">:</td><td>${nipGuru}</td></tr>
+                <tr><td class="label">Periode</td><td class="separator">:</td><td>${mNama} ${tahun}</td></tr>
+              </table>
+            </div>
+            
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>Hari/Tanggal</th>
+                  <th>Jam</th>
+                  <th>Kegiatan</th>
+                  <th>Kelas</th>
+                  <th>Materi</th>
+                  <th>Keterangan</th>
+                </tr>
+              </thead>
+              <tbody>
+          `;
+          
+          if (monthData.length === 0) {
+            html += `<tr><td colspan="7" style="text-align:center; padding:20px;">Belum ada data jurnal</td></tr>`;
           } else {
-            showLoading(false);
+            monthData.forEach((j, i) => {
+              const d = new Date(j.tanggal);
+              const namaHari = days[d.getDay()];
+              const tglFormatted = d.toLocaleDateString('id-ID', {day: '2-digit', month: '2-digit', year: 'numeric'});
+              const kelasStr = j.kelas && j.kelas !== '-' ? j.kelas : '';
+              const materiStr = j.materi && j.materi !== '-' ? j.materi : '';
+              
+              html += `
+                <tr>
+                  <td style="text-align:center;">${i + 1}</td>
+                  <td>${namaHari}, ${tglFormatted}</td>
+                  <td style="text-align:center;">${j.jam_mulai} - ${j.jam_selesai}</td>
+                  <td>${j.kegiatan}</td>
+                  <td style="text-align:center;">${kelasStr}</td>
+                  <td>${materiStr}</td>
+                  <td>${j.keterangan}</td>
+                </tr>
+              `;
+            });
           }
-          if (r.success) {
-            openReportAndPrint(r.html);
-          } else {
-            showError(r.error || 'Gagal membuat laporan');
-          }
-        })
-        .withFailureHandler(function (e) {
-          clearTimeout(timeoutId);
-          if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '📥 DOWNLOAD PDF';
-          } else {
-            showLoading(false);
-          }
-          showError('Gagal: ' + e);
-        })
-        .downloadLaporanJurnal(bulan, tahun, App.user.profil.email);
+          
+          html += `
+              </tbody>
+            </table>
+            
+            <div class="ttd">
+              <p>Mapat Tunggul Selatan, ${new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
+              <p>Guru Mata Pelajaran,</p>
+              <div>
+                <b><u>${namaGuru}</u></b><br>
+                NIP. ${nipGuru}
+              </div>
+            </div>
+          </div>
+          `;
+        });
+
+        html += `</body></html>`;
+        openReportAndPrint(html);
+      });
     }
 
     // ============================================================
