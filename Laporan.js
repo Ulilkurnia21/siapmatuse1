@@ -70,9 +70,9 @@ async function downloadLaporanGuru() {
 
     if (absenData) {
       absenData.forEach(row => {
-        const tgl = new Date(row.tanggal);
-        const thn = tgl.getFullYear();
-        const bln = tgl.getMonth() + 1;
+        const [yyyy, mm, dd] = row.tanggal.split('-');
+        const thn = parseInt(yyyy, 10);
+        const bln = parseInt(mm, 10);
         const nis = row.nis;
         const status = row.status;
 
@@ -80,7 +80,7 @@ async function downloadLaporanGuru() {
         if (!siswaMap[nis]) return;
 
         if (bulanNum === 'ALL' || (thn === tahunNum && bln === bulanNum)) {
-          const tglStr = tgl.toLocaleDateString('id-ID', {day:'2-digit', month:'2-digit', year:'numeric'}); // DD/MM/YYYY
+          const tglStr = `${dd}/${mm}/${yyyy}`; // DD/MM/YYYY
           semuaTanggal.add(tglStr);
 
           if (!dataPerTanggal[tglStr]) dataPerTanggal[tglStr] = {};
@@ -131,9 +131,9 @@ async function downloadLaporanGuru() {
         .label { width: 100px; font-weight: bold; }
         .value { flex: 1; }
         table { width:100%; border-collapse: collapse; margin:20px 0; font-size:10px; }
-        th { background: #2e7d32 !important; color: white !important; padding: 6px; text-align: center; }
+        th { background: #2e7d32 !important; color: white !important; padding: 6px; text-align: center; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         td { border: 1px solid #a5d6a7; padding: 4px; text-align: center; }
-        .rekap-col { background: #e8f5e9; font-weight: bold; }
+        .rekap-col { background: #e8f5e9 !important; font-weight: bold; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: black !important; }
         .ttd { margin-top: 50px; text-align: right; }
         .ttd div { margin-top: 60px; }
       </style>
@@ -230,7 +230,7 @@ async function downloadLaporanGuru() {
       </table>
       
       <div class="ttd">
-        <p>Mapat Tunggul Selatan, ${new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
+        <p>Silayang, ${new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
         <p>Guru Mata Pelajaran,</p>
         <div>
           <b><u>${namaGuru}</u></b><br>
@@ -315,9 +315,9 @@ async function downloadLaporanBulanan() {
 
     if (absenData) {
       absenData.forEach(row => {
-        const tgl = new Date(row.tanggal);
-        const thn = tgl.getFullYear();
-        const bln = tgl.getMonth() + 1;
+        const [yyyy, mm, dd] = row.tanggal.split('-');
+        const thn = parseInt(yyyy, 10);
+        const bln = parseInt(mm, 10);
         const nis = row.nis;
         const status = row.status;
 
@@ -325,7 +325,7 @@ async function downloadLaporanBulanan() {
         if (!rekap[nis]) return;
         
         if (thn === tahunNum && bln === bulanNum) {
-          const tglStr = tgl.toISOString().split('T')[0]; // YYYY-MM-DD
+          const tglStr = row.tanggal; // YYYY-MM-DD
           
           if (!statusHarian[nis]) statusHarian[nis] = {};
           const statusLama = statusHarian[nis][tglStr];
@@ -392,11 +392,12 @@ async function downloadLaporanBulanan() {
         .label { width: 100px; font-weight: bold; }
         .value { flex: 1; }
         table { width:100%; border-collapse: collapse; margin:20px 0; font-size:11px; }
-        th { background: #2e7d32 !important; color: white !important; padding: 8px; text-align: center; }
+        th { background: #2e7d32 !important; color: white !important; padding: 8px; text-align: center; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         td { border: 1px solid #a5d6a7; padding: 6px; text-align: center; }
         .ttd { margin-top: 50px; display: flex; justify-content: space-between; }
         .ttd div { text-align: center; width: 45%; }
         .ttd .sign-space { margin-top: 80px; font-weight: bold; text-decoration: underline; }
+        .rekap-col { background: #e8f5e9 !important; font-weight: bold; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: black !important; }
       </style>
     </head>
     <body>
@@ -425,12 +426,12 @@ async function downloadLaporanBulanan() {
             <th colspan="6">TOTAL KEHADIRAN / KETIDAKHADIRAN</th>
           </tr>
           <tr>
-            <th style="width:40px;" title="Hadir">H</th>
-            <th style="width:40px;" title="Sakit">S</th>
-            <th style="width:40px;" title="Izin">I</th>
-            <th style="width:40px;" title="Alpha">A</th>
-            <th style="width:40px;" title="Cabut">C</th>
-            <th style="width:40px;" title="Terlambat">T</th>
+            <th class="rekap-col" style="width:40px;" title="Hadir">H</th>
+            <th class="rekap-col" style="width:40px;" title="Sakit">S</th>
+            <th class="rekap-col" style="width:40px;" title="Izin">I</th>
+            <th class="rekap-col" style="width:40px;" title="Alpha">A</th>
+            <th class="rekap-col" style="width:40px;" title="Cabut">C</th>
+            <th class="rekap-col" style="width:40px;" title="Terlambat">T</th>
           </tr>
         </thead>
         <tbody>
@@ -441,12 +442,12 @@ async function downloadLaporanBulanan() {
         <td>${idx + 1}</td>
         <td>${r.nis}</td>
         <td style="text-align:left;">${r.nama}</td>
-        <td style="font-weight:bold;">${r.H}</td>
-        <td style="${r.S > 0 ? 'color:orange; font-weight:bold;' : ''}">${r.S}</td>
-        <td style="${r.I > 0 ? 'color:orange; font-weight:bold;' : ''}">${r.I}</td>
-        <td style="${r.A > 0 ? 'color:red; font-weight:bold;' : ''}">${r.A}</td>
-        <td style="${r.C > 0 ? 'color:purple; font-weight:bold;' : ''}">${r.C}</td>
-        <td style="${r.T > 0 ? 'color:blue; font-weight:bold;' : ''}">${r.T}</td>
+        <td class="rekap-col" style="font-weight:bold;">${r.H}</td>
+        <td class="rekap-col" style="${r.S > 0 ? 'color:orange;' : ''}">${r.S}</td>
+        <td class="rekap-col" style="${r.I > 0 ? 'color:orange;' : ''}">${r.I}</td>
+        <td class="rekap-col" style="${r.A > 0 ? 'color:red;' : ''}">${r.A}</td>
+        <td class="rekap-col" style="${r.C > 0 ? 'color:purple;' : ''}">${r.C}</td>
+        <td class="rekap-col" style="${r.T > 0 ? 'color:blue;' : ''}">${r.T}</td>
       </tr>`;
     });
 
@@ -462,7 +463,7 @@ async function downloadLaporanBulanan() {
           <p>NIP. 197410042006041003</p>
         </div>
         <div>
-          <p>Mapat Tunggul Selatan, ${new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
+          <p>Silayang, ${new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p>
           <p>Wali Kelas</p>
           <div class="sign-space">${namaWali}</div>
           <p>NIP. ${nipWali}</p>
