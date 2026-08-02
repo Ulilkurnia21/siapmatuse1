@@ -1584,11 +1584,25 @@
       // Jika sudah login, set state App
       App.user = {
         email: JSON.parse(savedUser).email || JSON.parse(savedUser).username, // Alias
+        username: JSON.parse(savedUser).username,
+        nama: JSON.parse(savedUser).nama,
         role: savedRole,
         profil: JSON.parse(savedUser)
       };
       App.config = JSON.parse(savedConfig);
-      if (App.user.role === 'guru') App.guruData = App.user.profil;
+      
+      // Petakan data dari Supabase ke struktur App.guruData yang diharapkan Frontend
+      if (App.user.role.toLowerCase() === 'guru' || App.user.role.toLowerCase() === 'pimpinan') {
+        App.guruData = {
+          success: true,
+          email: App.user.username,
+          nama: App.user.nama,
+          role: App.user.role,
+          kelasReguler: App.user.profil.kelas_reguler ? App.user.profil.kelas_reguler.split(',').map(s => s.trim()).filter(s => s) : [],
+          kelasMC: App.user.profil.kelas_mc ? App.user.profil.kelas_mc.split(',').map(s => s.trim()).filter(s => s) : [],
+          mapelList: App.user.profil.mapel ? App.user.profil.mapel.split(',').map(s => s.trim()).filter(s => s) : []
+        };
+      }
 
       // Sembunyikan login, tampilkan aplikasi
       document.getElementById('loginScreen').style.display = 'none';
