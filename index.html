@@ -2278,28 +2278,42 @@
         
         // Hanya query jika ada kelas
         if (semuaKelas.length > 0) {
-          const { data: siswaData, error } = await supaClient
-            .from('data_siswa')
-            .select('kelas');
+          const [resSiswa, resMC] = await Promise.all([
+            supaClient.from('data_siswa').select('kelas'),
+            supaClient.from('mapel_moving_siswa').select('mapel_moving')
+          ]);
             
-          if (error) throw error;
+          if (resSiswa.error) throw resSiswa.error;
           
-          if (siswaData) {
-            // Hitung siswa per kelas
-            const countMap = {};
-            siswaData.forEach(s => {
+          const countMap = {};
+          
+          if (resSiswa.data) {
+            // Hitung siswa per kelas reguler
+            resSiswa.data.forEach(s => {
               if (s.kelas) {
                 countMap[s.kelas] = (countMap[s.kelas] || 0) + 1;
               }
             });
-            
-            semuaKelas.forEach(kelas => {
-              statistik.push({
-                kelas: kelas,
-                jumlah: countMap[kelas] || 0
-              });
+          }
+          
+          if (resMC.data && !resMC.error) {
+            // Hitung siswa per kelas moving
+            resMC.data.forEach(s => {
+              if (s.mapel_moving) {
+                const arr = s.mapel_moving.split(',').map(m => m.trim());
+                arr.forEach(m => {
+                  if (m) countMap[m] = (countMap[m] || 0) + 1;
+                });
+              }
             });
           }
+            
+          semuaKelas.forEach(kelas => {
+            statistik.push({
+              kelas: kelas,
+              jumlah: countMap[kelas] || 0
+            });
+          });
         }
         
         const result = {
