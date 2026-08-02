@@ -2280,7 +2280,7 @@
         if (semuaKelas.length > 0) {
           const [resSiswa, resMC] = await Promise.all([
             supaClient.from('data_siswa').select('kelas'),
-            supaClient.from('mapel_moving_siswa').select('mapel_moving')
+            supaClient.from('pilihan_moving_class').select('mapel_moving')
           ]);
             
           if (resSiswa.error) throw resSiswa.error;
