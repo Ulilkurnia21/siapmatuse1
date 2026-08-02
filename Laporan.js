@@ -35,7 +35,7 @@ async function downloadLaporanGuru() {
   }
 
   try {
-    const isMC = !App.config.kelas_reguler.includes(kelas);
+    const isMC = !KELAS_REGULER.includes(kelas);
     const tableNameSiswa = isMC ? 'mapel_moving_siswa' : 'data_siswa';
 
     // 1. Ambil data siswa
@@ -282,7 +282,7 @@ async function downloadLaporanBulanan() {
   }
 
   try {
-    const isMC = !App.config.kelas_reguler.includes(kelas);
+    const isMC = !KELAS_REGULER.includes(kelas);
     const tableNameSiswa = isMC ? 'mapel_moving_siswa' : 'data_siswa';
 
     // 1. Ambil data siswa
