@@ -1552,14 +1552,16 @@
       const fn = isMC ? 'getSiswaByKelasMC' : 'getSiswaByKelas';
 
       if (isMC) {
-        supaClient.from('mapel_moving_siswa').select('nis, nama').eq('kelas', kelas).order('nama')
+        supaClient.from('pilihan_moving_class').select('nis, nama, mapel_moving')
           .then(({data, error}) => {
             showLoading(false);
             if (error) {
               callback({ success: false, error: error.message });
             } else {
-              App.pesertaCache[cacheKey] = data;
-              callback({ success: true, siswa: data });
+              let siswaMC = (data || []).filter(s => s.mapel_moving && s.mapel_moving.split(',').map(m => m.trim()).includes(kelas));
+              siswaMC.sort((a, b) => a.nama.localeCompare(b.nama));
+              App.pesertaCache[cacheKey] = siswaMC;
+              callback({ success: true, siswa: siswaMC });
             }
           });
       } else {
