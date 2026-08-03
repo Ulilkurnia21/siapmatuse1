@@ -6813,42 +6813,37 @@
       showCustomConfirm('Yakin ingin menghapus jurnal ini?', function () {
         showLoading(true);
 
-        google.script.run
-          .withSuccessHandler(function (r) {
+        supaClient.from('jurnal')
+          .delete()
+          .eq('id', id)
+          .then(({ error }) => {
             showLoading(false);
-            if (r.success) {
+            if (error) {
+              showError('Gagal menghapus: ' + error.message);
+            } else {
               showSuccess('Jurnal dihapus');
               window.prefetchJurnal = {};
               loadJurnalData(window.currentJurnalPage);
-            } else {
-              showError(r.error || 'Gagal menghapus');
             }
-          })
-          .withFailureHandler(function (e) {
-            showLoading(false);
-            showError('Gagal: ' + e);
-          })
-          .hapusJurnal(id);
+          });
       }, 'danger');
     }
 
     function editJurnal(id) {
       showLoading(true);
 
-      google.script.run
-        .withSuccessHandler(function (r) {
+      supaClient.from('jurnal')
+        .select('*')
+        .eq('id', id)
+        .single()
+        .then(({ data, error }) => {
           showLoading(false);
-          if (r.success) {
-            tampilkanModalEditJurnal(r.data);
+          if (error) {
+            showError('Gagal memuat data: ' + error.message);
           } else {
-            showError(r.error || 'Gagal memuat data');
+            tampilkanModalEditJurnal(data);
           }
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-          showError('Gagal: ' + e);
-        })
-        .getJurnalById(id);
+        });
     }
 
     function tampilkanModalEditJurnal(data) {
@@ -6898,11 +6893,11 @@
             </div>
             <div class="form-group">
               <label>Jam Mulai</label>
-              <input type="text" id="editJurnalJamMulai" class="form-control" value="${data.jamMulai}" placeholder="07.30">
+              <input type="text" id="editJurnalJamMulai" class="form-control" value="${data.jam_mulai || data.jamMulai}" placeholder="07.30">
             </div>
             <div class="form-group">
               <label>Jam Selesai</label>
-              <input type="text" id="editJurnalJamSelesai" class="form-control" value="${data.jamSelesai}" placeholder="09.00">
+              <input type="text" id="editJurnalJamSelesai" class="form-control" value="${data.jam_selesai || data.jamSelesai}" placeholder="09.00">
             </div>
           </div>
           
@@ -6980,8 +6975,8 @@
 
       const dataBaru = {
         tanggal: tanggal,
-        jamMulai: jamMulai,
-        jamSelesai: jamSelesai,
+        jam_mulai: jamMulai,
+        jam_selesai: jamSelesai,
         kegiatan: kegiatan,
         kelas: kelas || '-',
         mapel: mapel || '-',
@@ -6991,23 +6986,20 @@
 
       showLoading(true);
 
-      google.script.run
-        .withSuccessHandler(function (r) {
+      supaClient.from('jurnal')
+        .update(dataBaru)
+        .eq('id', id)
+        .then(({ error }) => {
           showLoading(false);
-          if (r.success) {
+          if (error) {
+            showError('Gagal mengupdate: ' + error.message);
+          } else {
             showSuccess('Jurnal diupdate');
             tutupModalEditJurnal();
             window.prefetchJurnal = {};
             loadJurnalData(window.currentJurnalPage);
-          } else {
-            showError(r.error || 'Gagal mengupdate');
           }
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-          showError('Gagal: ' + e);
-        })
-        .updateJurnal(id, dataBaru);
+        });
     }
 
 
