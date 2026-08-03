@@ -316,17 +316,29 @@ async function downloadLaporanBulanan() {
     const bulanNum = bulan === 'ALL' ? 'ALL' : parseInt(bulan, 10);
     const tahunNum = tahun === 'ALL' ? 'ALL' : parseInt(tahun, 10);
 
-    // 2. Ambil absensi bulanan untuk kelas ini (seluruh guru/mapel)
-    let { data: absenData, error: errAbsen } = await supaClient.from('absensi')
-      .select('*')
-      .eq('kelas', kelas);
+    // 2. Ambil absensi
+    // Untuk kelas reguler: ambil semua absensi berdasarkan NIS siswa (termasuk absensi dari mapel pilihan)
+    // Untuk kelas MC: filter ketat berdasarkan kelas
+    let absenData = [];
+    if (isMC) {
+      let { data, error: errAbsen } = await supaClient.from('absensi')
+        .select('*')
+        .eq('kelas', kelas);
+      if (errAbsen) throw errAbsen;
+      absenData = data || [];
+    } else {
+      const nisList = siswaData.map(s => s.nis);
+      let { data, error: errAbsen } = await supaClient.from('absensi')
+        .select('*')
+        .in('nis', nisList);
+      if (errAbsen) throw errAbsen;
+      absenData = data || [];
+    }
 
-    if (errAbsen) throw errAbsen;
+    // Group statusHarian dan statusJam by month
+    const monthsMap = {}; // key: YYYY-MM atau 'current'
 
-    // Group statusHarian by month
-    const monthsMap = {}; // key: YYYY-MM
-
-    if (absenData) {
+    if (absenData.length > 0) {
       absenData.forEach(row => {
         const [yyyy, mm, dd] = row.tanggal.split('-');
         const thn = parseInt(yyyy, 10);
@@ -532,6 +544,15 @@ async function downloadLaporanBulanan() {
             }
 
             mingguArray.forEach((minggu, mIdx) => {
+              // Cek apakah ada data di minggu ini
+              const adaDataMinggu = minggu.hari.some(h => {
+                return siswaData.some(s => {
+                  if (!mObj.statusJam || !mObj.statusJam[s.nis] || !mObj.statusJam[s.nis][h.tanggal]) return false;
+                  const jamMap = mObj.statusJam[s.nis][h.tanggal];
+                  return Object.keys(jamMap).length > 0;
+                });
+              });
+              if (!adaDataMinggu) return; // Skip minggu kosong
               html += `<div class="page-break"></div>`;
               html += `
             ${KOP_SURAT_LAPORAN}
