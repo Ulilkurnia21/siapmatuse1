@@ -3060,30 +3060,48 @@
         return;
       }
 
-      showLoading(true);
+      toggleButtonLoading('button[onclick="loadDataForEdit()"]', true, '⏳ Memuat...');
 
-      google.script.run
-        .withSuccessHandler(function (r) {
-          showLoading(false);
-
-          if (r.success) {
-            if (Object.keys(r.existingStatus).length === 0) {
-              showError('Tidak ada data untuk filter ini');
-              document.getElementById('editContainer').style.display = 'none';
-              return;
-            }
-
-            displayDataForEdit(r.siswa, r.existingStatus, r.mapel);
-            document.getElementById('editContainer').style.display = 'block';
-          } else {
-            showError(r.error || 'Gagal memuat data');
+      // Ambil data absensi yang sudah ada
+      supaClient.from('absensi')
+        .select('nis, status, mapel')
+        .eq('kelas', kelas)
+        .eq('tanggal', tanggal)
+        .eq('jam', jam)
+        .eq('username_guru', App.user.username)
+        .then(({ data: absenData, error }) => {
+          if (error) {
+            toggleButtonLoading('button[onclick="loadDataForEdit()"]', false);
+            showError('Gagal memuat data: ' + error.message);
+            return;
           }
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-          showError('Gagal: ' + e);
-        })
-        .getDataAbsensiForEdit(kelas, tanggal, jam, App.user.email);
+
+          if (!absenData || absenData.length === 0) {
+            toggleButtonLoading('button[onclick="loadDataForEdit()"]', false);
+            showError('Tidak ada data untuk filter ini');
+            document.getElementById('editContainer').style.display = 'none';
+            return;
+          }
+
+          const existingStatus = {};
+          let mapel = '';
+          absenData.forEach(row => {
+            existingStatus[row.nis] = row.status;
+            if (!mapel) mapel = row.mapel; // Ambil mapel dari salah satu row
+          });
+
+          // Ambil daftar siswa
+          const isMC = typeof KELAS_REGULER !== 'undefined' && !KELAS_REGULER.includes(kelas);
+          fetchSiswaCache(kelas, isMC, function (r) {
+            toggleButtonLoading('button[onclick="loadDataForEdit()"]', false);
+            if (r.success) {
+              displayDataForEdit(r.siswa, existingStatus, mapel);
+              document.getElementById('editContainer').style.display = 'block';
+            } else {
+              showError(r.error || 'Gagal memuat data siswa');
+            }
+          });
+        });
     }
 
     function displayDataForEdit(siswa, existingStatus, mapel) {
@@ -3177,21 +3195,42 @@
       confirmAction(`Update ${dataToSave.length} data absensi?`, function () {
         toggleButtonLoading('button[onclick="updateAbsensi()"]', true, '⏳ Memperbarui...');
 
-        google.script.run
-          .withSuccessHandler(function (r) {
-            toggleButtonLoading('button[onclick="updateAbsensi()"]', false);
-            if (r.success) {
-              showSuccess(`${r.jumlah} data berhasil diupdate`);
-              document.getElementById('editContainer').style.display = 'none';
-            } else {
-              showError(r.error || 'Gagal mengupdate');
+        const absensiData = dataToSave.map(d => ({
+          nis: d.nis,
+          nama: d.nama,
+          kelas: kelas,
+          mapel: mapel,
+          tanggal: tanggal,
+          jam: jam,
+          status: d.status,
+          username_guru: App.user.username
+        }));
+
+        supaClient.from('absensi')
+          .delete()
+          .eq('kelas', kelas)
+          .eq('tanggal', tanggal)
+          .eq('jam', jam)
+          .eq('username_guru', App.user.username)
+          .then(({ error: delError }) => {
+            if (delError) {
+              toggleButtonLoading('button[onclick="updateAbsensi()"]', false);
+              showError('Gagal mengupdate (delete failed): ' + delError.message);
+              return;
             }
-          })
-          .withFailureHandler(function (e) {
-            toggleButtonLoading('button[onclick="updateAbsensi()"]', false);
-            showError('Gagal: ' + e);
-          })
-          .updateAbsensiBatch(dataToSave, kelas, tanggal, jam, mapel, App.user.email);
+
+            supaClient.from('absensi')
+              .insert(absensiData)
+              .then(({ data, error: insError }) => {
+                toggleButtonLoading('button[onclick="updateAbsensi()"]', false);
+                if (insError) {
+                  showError('Gagal mengupdate (insert failed): ' + insError.message);
+                } else {
+                  showSuccess(`${dataToSave.length} data berhasil diupdate`);
+                  document.getElementById('editContainer').style.display = 'none';
+                }
+              });
+          });
       });
     }
 
