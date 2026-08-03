@@ -6762,10 +6762,11 @@
         const jam = item.jam_mulai + ' - ' + item.jam_selesai;
         
         // Buat nama hari dari tanggal
-        const dateObj = new Date(item.tanggal);
+        const [tY, tM, tD] = item.tanggal.split('-');
+        const dateObj = new Date(parseInt(tY), parseInt(tM) - 1, parseInt(tD));
         const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
         const namaHari = days[dateObj.getDay()];
-        const tglFormatted = dateObj.toLocaleDateString('id-ID', {day: '2-digit', month: '2-digit', year: 'numeric'});
+        const tglFormatted = `${tD}/${tM}/${tY}`;
 
         html += `
       <tr>
@@ -6827,7 +6828,7 @@
             showLoading(false);
             showError('Gagal: ' + e);
           })
-          .hapusJurnalKelas(id);
+          .hapusJurnal(id);
       }, 'danger');
     }
 
