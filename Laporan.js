@@ -376,7 +376,10 @@ async function downloadLaporanBulanan() {
           }
 
           if (!monthsMap[key].statusJam[nis][tglStr]) monthsMap[key].statusJam[nis][tglStr] = {};
-          monthsMap[key].statusJam[nis][tglStr][row.jam] = status;
+          const statusJamLama = monthsMap[key].statusJam[nis][tglStr][row.jam];
+          if (!statusJamLama || getPrioritasStatus(status) > getPrioritasStatus(statusJamLama)) {
+            monthsMap[key].statusJam[nis][tglStr][row.jam] = status;
+          }
         }
       });
     }
@@ -638,3 +641,190 @@ async function downloadLaporanBulanan() {
         showError('Gagal membuat rekap bulanan: ' + error.message);
       }
     }
+
+
+// =============================================================
+
+// =============================================================
+// ============ LAPORAN NILAI =================================
+// =============================================================
+
+// ---- Laporan Nilai (download/print) ----
+function showDownloadLaporanNilaiModal() {
+  const kelas = document.getElementById('laporanNilaiKelas').value;
+  const mapel = document.getElementById('laporanNilaiMapel').value;
+  if (!kelas || !mapel) {
+    showError('Pilih kelas dan mata pelajaran!');
+    return;
+  }
+  document.getElementById('modalDownloadNilai').style.display = 'flex';
+}
+
+async function downloadLaporanNilai(format) {
+  document.getElementById('modalDownloadNilai').style.display = 'none';
+  const kelas = document.getElementById('laporanNilaiKelas').value;
+  const mapel = document.getElementById('laporanNilaiMapel').value;
+  const siswaContainer = document.getElementById('containerLaporanNilaiSiswa');
+  const filterSiswa = (siswaContainer && siswaContainer.style.display !== 'none')
+    ? document.getElementById('laporanNilaiSiswa').value : 'ALL';
+
+  if (!kelas || !mapel) {
+    showError('Pilih kelas dan mata pelajaran!');
+    return;
+  }
+
+  const btn = document.getElementById('btnDownloadNilai');
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ MENYIAPKAN...'; }
+
+  try {
+    // Ambil data siswa
+    const isMC = !KELAS_REGULER.includes(kelas);
+    let siswaData = [];
+    if (isMC) {
+      const { data, error } = await supaClient.from('pilihan_moving_class').select('nis, nama, mapel_moving');
+      if (error) throw error;
+      siswaData = (data || []).filter(s => s.mapel_moving && s.mapel_moving.split(',').map(m => m.trim()).includes(kelas));
+      siswaData.sort((a, b) => a.nama.localeCompare(b.nama));
+    } else {
+      const { data, error } = await supaClient.from('data_siswa').select('nis, nama').eq('kelas', kelas).order('nama', { ascending: true });
+      if (error) throw error;
+      siswaData = data || [];
+    }
+    if (filterSiswa !== 'ALL') {
+      siswaData = siswaData.filter(s => s.nis === filterSiswa);
+    }
+    if (siswaData.length === 0) throw new Error('Tidak ada data siswa');
+
+    // Ambil semua nilai untuk kelas & mapel ini
+    const { data: nilaiData, error: nilaiError } = await supaClient
+      .from('nilai')
+      .select('*')
+      .eq('kelas', kelas)
+      .eq('matapelajaran', mapel)
+      .eq('username_guru', App.user.username)
+      .order('jenistugas', { ascending: true })
+      .order('nopenilaian', { ascending: true });
+    if (nilaiError) throw nilaiError;
+
+    // Susun struktur: { jenis+no: { nis: nilai } }
+    const kolom = []; // [{label, key}]
+    const kolomSet = new Set();
+    const nilaiMap = {}; // nis -> { key -> nilai }
+
+    (nilaiData || []).forEach(row => {
+      const key = `${row.jenistugas}${row.nopenilaian}`;
+      if (!kolomSet.has(key)) { kolomSet.add(key); kolom.push({ label: key, key }); }
+      if (!nilaiMap[row.nis]) nilaiMap[row.nis] = {};
+      nilaiMap[row.nis][key] = row.nilai;
+    });
+
+    const namaGuru = App.user.nama || App.user.username;
+    const nipGuru = App.user.profil?.nip || '-';
+
+    // Bangun HTML tabel
+    let thKolom = kolom.map(k => `<th>${k.label}</th>`).join('');
+    let tbody = '';
+    siswaData.forEach((s, idx) => {
+      const vals = kolom.map(k => {
+        const v = nilaiMap[s.nis] ? nilaiMap[s.nis][k.key] : '';
+        return `<td>${v !== undefined && v !== null ? v : '-'}</td>`;
+      }).join('');
+      tbody += `<tr><td>${idx+1}</td><td>${s.nis}</td><td style="text-align:left">${s.nama}</td>${vals}</tr>`;
+    });
+
+    const html = `
+    <html><head>
+    <style>
+      @page { size: A4 landscape; margin: 1.5cm; }
+      @media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }
+      body { font-family: Arial, sans-serif; font-size: 11px; }
+      table { width:100%; border-collapse:collapse; margin:20px 0; font-size:10px; }
+      th { background:#1565c0 !important; color:white !important; padding:6px; text-align:center; }
+      td { border:1px solid #90caf9; padding:4px; text-align:center; }
+      .header-item { margin:5px 0; display:flex; }
+      .label { width:130px; font-weight:bold; }
+    </style>
+    </head><body>
+    ${KOP_SURAT_LAPORAN}
+    <h3 style="text-align:center;">REKAPITULASI NILAI MATA PELAJARAN</h3>
+    <div class="header-item"><span class="label">Guru</span><span>: ${namaGuru}</span></div>
+    <div class="header-item"><span class="label">NIP</span><span>: ${nipGuru}</span></div>
+    <div class="header-item"><span class="label">Mata Pelajaran</span><span>: ${mapel}</span></div>
+    <div class="header-item"><span class="label">Kelas</span><span>: ${kelas}</span></div>
+    <table>
+      <thead><tr><th>No</th><th>NIS</th><th>Nama Siswa</th>${thKolom}</tr></thead>
+      <tbody>${tbody}</tbody>
+    </table>
+    <div style="margin-top:50px; text-align:right;">
+      <p>Silayang, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+      <p>Guru Mata Pelajaran,</p>
+      <div style="margin-top:60px;"><b><u>${namaGuru}</u></b><br>NIP. ${nipGuru}</div>
+    </div>
+    </body></html>`;
+
+    if (format === 'excel') {
+      const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Laporan_Nilai_${kelas}_${mapel}.xls`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } else {
+      openReportAndPrint(html);
+    }
+
+    if (btn) { btn.disabled = false; btn.innerHTML = '📥 DOWNLOAD NILAI'; }
+  } catch (error) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '📥 DOWNLOAD NILAI'; }
+    showError('Gagal membuat laporan nilai: ' + error.message);
+  }
+}
+
+// Ganti updateLaporanNilaiFilter dari google.script.run ke Supabase
+async function updateLaporanNilaiFilter() {
+  const kelas = document.getElementById('laporanNilaiKelas').value;
+  const mapelSelect = document.getElementById('laporanNilaiMapel');
+  const siswaContainer = document.getElementById('containerLaporanNilaiSiswa');
+  const siswaSelect = document.getElementById('laporanNilaiSiswa');
+
+  if (!kelas) {
+    mapelSelect.innerHTML = '<option value="">Pilih Mapel</option>';
+    siswaContainer.style.display = 'none';
+    siswaSelect.innerHTML = '<option value="ALL">Seluruh Siswa</option>';
+    return;
+  }
+
+  // Populate Mapel Options dari data guru
+  let mapelOptions = '<option value="">Pilih Mapel</option>';
+  if (App.guruData?.mapelList && App.guruData.mapelList.length > 0) {
+    App.guruData.mapelList.forEach(m => mapelOptions += `<option value="${m}">${m}</option>`);
+  }
+  mapelSelect.innerHTML = mapelOptions;
+
+  // Tampilkan filter siswa dari Supabase
+  siswaContainer.style.display = 'block';
+  siswaSelect.innerHTML = '<option value="ALL">Memuat data siswa...</option>';
+
+  try {
+    const isMC = !KELAS_REGULER.includes(kelas);
+    let siswaData = [];
+    if (isMC) {
+      const { data, error } = await supaClient.from('pilihan_moving_class').select('nis, nama, mapel_moving');
+      if (error) throw error;
+      siswaData = (data || []).filter(s => s.mapel_moving && s.mapel_moving.split(',').map(m => m.trim()).includes(kelas));
+      siswaData.sort((a, b) => a.nama.localeCompare(b.nama));
+    } else {
+      const { data, error } = await supaClient.from('data_siswa').select('nis, nama').eq('kelas', kelas).order('nama', { ascending: true });
+      if (error) throw error;
+      siswaData = data || [];
+    }
+    let siswaOptions = '<option value="ALL">Seluruh Siswa</option>';
+    siswaData.forEach(s => { siswaOptions += `<option value="${s.nis}">${s.nama}</option>`; });
+    siswaSelect.innerHTML = siswaOptions;
+  } catch (e) {
+    siswaSelect.innerHTML = '<option value="ALL">Seluruh Siswa</option>';
+  }
+}
