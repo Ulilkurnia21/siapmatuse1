@@ -3878,57 +3878,6 @@
       renderLaporan();
     }
 
-    function updateLaporanNilaiFilter() {
-      const kelas = document.getElementById('laporanNilaiKelas').value;
-      const mapelSelect = document.getElementById('laporanNilaiMapel');
-      const siswaContainer = document.getElementById('containerLaporanNilaiSiswa');
-      const siswaSelect = document.getElementById('laporanNilaiSiswa');
-
-      if (!kelas) {
-        mapelSelect.innerHTML = '<option value="">Pilih Mapel</option>';
-        siswaContainer.style.display = 'none';
-        siswaSelect.innerHTML = '<option value="ALL">Seluruh Siswa</option>';
-        return;
-      }
-
-      // Populate Mapel Options
-      let mapelOptions = '<option value="">Pilih Mapel</option>';
-      if (App.guruData?.mapelList && App.guruData.mapelList.length > 0) {
-        App.guruData.mapelList.forEach(m => mapelOptions += `<option value="${m}">${m}</option>`);
-      }
-
-      // Jika guru ini adalah wali kelas dari kelas yang dipilih, tambahkan opsi Seluruh Mapel
-      if (App.user?.profil?.waliKelas === kelas) {
-        mapelOptions += `<option value="ALL_MAPEL">-- Seluruh Mata Pelajaran --</option>`;
-      }
-      mapelSelect.innerHTML = mapelOptions;
-
-      // Tampilkan filter siswa
-      siswaContainer.style.display = 'block';
-      siswaSelect.innerHTML = '<option value="ALL">Memuat data siswa...</option>';
-
-      // Ambil data siswa dari backend
-      const isMC = KELAS_REGULER.indexOf(kelas) === -1;
-      const fn = isMC ? 'getSiswaByKelasMC' : 'getSiswaByKelas';
-
-      const runner = google.script.run
-        .withSuccessHandler(function (r) {
-          if (r.success) {
-            let siswaOptions = '<option value="ALL">Seluruh Siswa</option>';
-            r.siswa.forEach(s => {
-              siswaOptions += `<option value="${s.nis}">${s.nama}</option>`;
-            });
-            siswaSelect.innerHTML = siswaOptions;
-          } else {
-            siswaSelect.innerHTML = '<option value="ALL">Seluruh Siswa</option>';
-          }
-        })
-        .withFailureHandler(function () {
-          siswaSelect.innerHTML = '<option value="ALL">Seluruh Siswa</option>';
-        });
-
-      runner[fn](kelas);
-    }
 
     function renderLaporan() {
       let semuaKelasOptions = '<option value="">Pilih Kelas</option>';
@@ -4379,84 +4328,6 @@
         .downloadLaporanShalat(kelas, bulan, tahun);
     }
 
-    function showDownloadLaporanNilaiModal() {
-      const kelas = document.getElementById('laporanNilaiKelas').value;
-      const mapel = document.getElementById('laporanNilaiMapel').value;
-      if (!kelas || !mapel) {
-        showError('Pilih kelas dan mata pelajaran!');
-        return;
-      }
-      document.getElementById('modalDownloadNilai').style.display = 'flex';
-    }
-
-    function downloadLaporanNilai(format) {
-      document.getElementById('modalDownloadNilai').style.display = 'none';
-      const kelas = document.getElementById('laporanNilaiKelas').value;
-      const mapel = document.getElementById('laporanNilaiMapel').value;
-      const siswaContainer = document.getElementById('containerLaporanNilaiSiswa');
-      const siswa = (siswaContainer && siswaContainer.style.display !== 'none') ? document.getElementById('laporanNilaiSiswa').value : 'ALL';
-
-      if (!kelas || !mapel) {
-        showError('Pilih kelas dan mata pelajaran!');
-        return;
-      }
-
-      const btn = document.getElementById('btnDownloadNilai');
-      if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '⏳ MENYIAPKAN...';
-      } else {
-        showLoading(true, 'Sedang menyiapkan laporan, mohon tunggu (maksimal 3 menit)...');
-      }
-
-      const timeoutId = setTimeout(() => {
-        if (btn) {
-          btn.disabled = false;
-          btn.innerHTML = '📥 DOWNLOAD NILAI';
-        } else {
-          showLoading(false);
-        }
-        showError('Permintaan waktu habis (Timeout). Data mungkin terlalu besar atau koneksi lambat.');
-      }, 180000);
-      google.script.run
-        .withSuccessHandler(function (r) {
-          clearTimeout(timeoutId);
-          if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '📥 DOWNLOAD NILAI';
-          } else {
-            showLoading(false);
-          }
-          if (r.success) {
-            if (format === 'excel') {
-              const blob = new Blob([r.html], { type: 'application/vnd.ms-excel' });
-              const url = window.URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `Laporan_Nilai_${kelas}_${mapel}.xls`;
-              document.body.appendChild(a);
-              a.click();
-              a.remove();
-              window.URL.revokeObjectURL(url);
-            } else {
-              openReportAndPrint(r.html);
-            }
-          } else {
-            showError(r.error || 'Gagal membuat laporan');
-          }
-        })
-        .withFailureHandler(function (e) {
-          clearTimeout(timeoutId);
-          if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '📥 DOWNLOAD NILAI';
-          } else {
-            showLoading(false);
-          }
-          showError('Gagal: ' + e);
-        })
-        .downloadLaporanNilai(kelas, mapel, App.user.profil.email, siswa);
-    }
 
     function loadSiswaFilterLap() {
       const kelas = document.getElementById('lapSiswaKelas').value;
@@ -5752,6 +5623,14 @@
     // ============================================================
     // ============ FUNGSI MODUL NILAI ============================
     // ============================================================
+
+
+
+    // ============================================================
+
+    // ============================================================
+    // ============ FUNGSI MODUL NILAI ============================
+    // ============================================================
     function renderNilai() {
       if (!App.guruData) return;
 
@@ -5783,9 +5662,11 @@
         tahunOpt += `<option value="${y}" ${selected}>${y}</option>`;
       });
 
+      const kelasFilterOptions = kelasOptions.replace('<option value="">Pilih Kelas</option>', '');
+
       const html = `
         <div class="form-section">
-          <h3>⭐ INPUT & EDIT NILAI | ${App.guruData?.nama || '-'}</h3>
+          <h3>⭐ INPUT &amp; EDIT NILAI | ${App.guruData?.nama || '-'}</h3>
           <div class="form-grid">
             <div class="form-group">
               <label>Kelas</label>
@@ -5823,20 +5704,13 @@
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
               <h4 id="nilaiTitle">Daftar Siswa</h4>
             </div>
-
-            <!-- Panel pilihan aksi: Input Baru / Edit / Hapus -->
             <div id="nilaiDialogArea"></div>
-
-            <!-- Tabel input nilai: hanya tampil setelah aksi dipilih -->
             <div id="nilaiTabelArea" style="display:none;">
-
-              <!-- Tombol Export/Import: hanya muncul saat tabel aktif -->
               <div style="display:flex; justify-content:flex-end; gap:5px; margin-bottom:10px;">
                 <button class="btn btn-sm btn-warning" onclick="exportNilaiCSV()">📥 EXPORT EXCEL</button>
                 <button class="btn btn-sm btn-success" onclick="document.getElementById('importFile').click()">📤 IMPORT EXCEL</button>
                 <input type="file" id="importFile" style="display:none" accept=".csv" onchange="importNilaiCSV(this)">
               </div>
-
               <div class="table-container">
                 <table class="nilai-table">
                   <thead>
@@ -5850,7 +5724,6 @@
                   <tbody id="nilaiTbody"></tbody>
                 </table>
               </div>
-
               <div class="bottom-button" style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
                 <button class="btn btn-success" id="nilaiSimpanBtn" onclick="simpanNilai()">💾 SIMPAN NILAI</button>
                 <button onclick="kembaliKeDialog()" style="background:#757575; color:white; padding:10px 20px; border:none; border-radius:6px; cursor:pointer; font-size:14px;">↩️ Kembali</button>
@@ -5864,7 +5737,7 @@
               <div class="form-group">
                 <label>Filter Kelas</label>
                 <select id="filterKelasBelumLengkap" onchange="loadNilaiBelumLengkap()">
-                  ${kelasOptions.replace('<option value="">Pilih Kelas</option>', '')}
+                  ${kelasFilterOptions}
                 </select>
               </div>
               <div class="form-group">
@@ -5883,7 +5756,7 @@
                   </tr>
                 </thead>
                 <tbody id="tbodyNilaiBelumLengkap">
-                  <tr><td colspan="4" style="text-align:center;">Pilih kelas dan klik Refresh Data untuk memuat.</td></tr>
+                  <tr><td colspan="4" style="text-align:center;">Memuat data... ⏳</td></tr>
                 </tbody>
               </table>
             </div>
@@ -5893,7 +5766,6 @@
       `;
 
       document.getElementById('nilai').innerHTML = html;
-      // Auto-load kelas pertama yang diajar guru
       loadNilaiBelumLengkap();
     }
 
@@ -5901,111 +5773,65 @@
       const kelasFilter = document.getElementById('filterKelasBelumLengkap').value;
       const tbody = document.getElementById('tbodyNilaiBelumLengkap');
       tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Memuat data... ⏳</td></tr>';
-      
       try {
         const usernameGuru = App.user.username;
-        
         let query = supaClient.from('nilai').select('*').eq('username_guru', usernameGuru);
         if (kelasFilter) query = query.eq('kelas', kelasFilter);
-        
         const { data: nilaiData, error: nilaiError } = await query;
         if (nilaiError) throw nilaiError;
-
         if (!nilaiData || nilaiData.length === 0) {
            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#2e7d32; font-weight:bold;">Tuntas! Semua siswa sudah memiliki nilai lengkap (atau belum ada data).</td></tr>';
            return;
         }
-
         const guruInput = {};
         const mapelPerKelas = {};
         const jenisPerMapelKelas = {};
-        
         nilaiData.forEach(row => {
            const kelas = row.kelas;
            const mapel = row.matapelajaran;
            const noPen = row.nopenilaian || 1;
            const jenis = row.jenistugas + noPen;
            const nis = row.nis;
-           
-           if (!guruInput[kelas]) {
-             guruInput[kelas] = {};
-             mapelPerKelas[kelas] = new Set();
-             jenisPerMapelKelas[kelas] = {};
-           }
-           if (!guruInput[kelas][mapel]) {
-             guruInput[kelas][mapel] = {};
-             jenisPerMapelKelas[kelas][mapel] = new Set();
-           }
-           if (!guruInput[kelas][mapel][jenis]) {
-             guruInput[kelas][mapel][jenis] = new Set();
-           }
-           
+           if (!guruInput[kelas]) { guruInput[kelas] = {}; mapelPerKelas[kelas] = new Set(); jenisPerMapelKelas[kelas] = {}; }
+           if (!guruInput[kelas][mapel]) { guruInput[kelas][mapel] = {}; jenisPerMapelKelas[kelas][mapel] = new Set(); }
+           if (!guruInput[kelas][mapel][jenis]) { guruInput[kelas][mapel][jenis] = new Set(); }
            mapelPerKelas[kelas].add(mapel);
            jenisPerMapelKelas[kelas][mapel].add(jenis);
            guruInput[kelas][mapel][jenis].add(nis);
         });
-        
         const hasil = [];
         for (const kelas in guruInput) {
            let semuaSiswa = [];
-           const isMC = (App.guruData && App.guruData.kelasMC && App.guruData.kelasMC.includes(kelas)) || 
+           const isMC = (App.guruData && App.guruData.kelasMC && App.guruData.kelasMC.includes(kelas)) ||
                         (App.config && App.config.kelasMC && App.config.kelasMC.includes(kelas));
-           if (isMC) { 
-             const { data, error } = await supaClient
-               .from('pilihan_moving_class')
-               .select('nis, nama, mapel_moving');
-             if (!error && data) {
-               semuaSiswa = data.filter(s => s.mapel_moving && s.mapel_moving.split(',').map(m => m.trim()).includes(kelas));
-             }
+           if (isMC) {
+             const { data, error } = await supaClient.from('pilihan_moving_class').select('nis, nama, mapel_moving');
+             if (!error && data) semuaSiswa = data.filter(s => s.mapel_moving && s.mapel_moving.split(',').map(m => m.trim()).includes(kelas));
            } else {
-             const { data, error } = await supaClient
-               .from('data_siswa')
-               .select('nis, nama')
-               .eq('kelas', kelas);
+             const { data, error } = await supaClient.from('data_siswa').select('nis, nama').eq('kelas', kelas);
              if (!error && data) semuaSiswa = data;
            }
-           
            for (const mapel of mapelPerKelas[kelas]) {
              const semuaJenis = Array.from(jenisPerMapelKelas[kelas][mapel]);
              for (const siswa of semuaSiswa) {
                const belumLengkap = [];
                for (const jenis of semuaJenis) {
-                 if (!guruInput[kelas][mapel][jenis].has(siswa.nis)) {
-                   belumLengkap.push(jenis);
-                 }
+                 if (!guruInput[kelas][mapel][jenis].has(siswa.nis)) belumLengkap.push(jenis);
                }
-               if (belumLengkap.length > 0) {
-                 hasil.push({
-                   nama: siswa.nama,
-                   kelas: kelas,
-                   mapel: mapel,
-                   nilaiBelum: belumLengkap
-                 });
-               }
+               if (belumLengkap.length > 0) hasil.push({ nama: siswa.nama, kelas, mapel, nilaiBelum: belumLengkap });
              }
            }
         }
-        
-        hasil.sort((a, b) => {
-          if (a.kelas !== b.kelas) return a.kelas.localeCompare(b.kelas);
-          return a.nama.localeCompare(b.nama);
-        });
-
+        hasil.sort((a, b) => a.kelas !== b.kelas ? a.kelas.localeCompare(b.kelas) : a.nama.localeCompare(b.nama));
         if (hasil.length === 0) {
           tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#2e7d32; font-weight:bold;">Tuntas! Semua siswa sudah memiliki nilai lengkap.</td></tr>';
         } else {
           let html = '';
           hasil.forEach((d, i) => {
-            html += `<tr>
-              <td>${i+1}</td>
-              <td>${d.kelas}</td>
-              <td style="text-align:left;">${d.nama}</td>
-              <td style="text-align:left; color:#d32f2f;"><b>${d.mapel}</b>: ${d.nilaiBelum.join(', ')}</td>
-            </tr>`;
+            html += `<tr><td>${i+1}</td><td>${d.kelas}</td><td style="text-align:left;">${d.nama}</td><td style="text-align:left; color:#d32f2f;"><b>${d.mapel}</b>: ${d.nilaiBelum.join(', ')}</td></tr>`;
           });
           tbody.innerHTML = html;
         }
-
       } catch (e) {
         tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:red;">Gagal koneksi: ${e.message}</td></tr>`;
       }
@@ -6017,53 +5843,29 @@
       const jenis = document.getElementById('nilaiJenis').value;
       const bulan = parseInt(document.getElementById('nilaiBulan').value);
       const tahun = parseInt(document.getElementById('nilaiTahun').value);
-
-      if (!kelas || !mapel) {
-        showError('Pilih kelas dan mapel!');
-        return;
-      }
-
+      if (!kelas || !mapel) { showError('Pilih kelas dan mapel!'); return; }
       showLoading(true);
       try {
         let siswaData = [];
-        const isMC = (App.guruData && App.guruData.kelasMC && App.guruData.kelasMC.includes(kelas)) || 
+        const isMC = (App.guruData && App.guruData.kelasMC && App.guruData.kelasMC.includes(kelas)) ||
                      (App.config && App.config.kelasMC && App.config.kelasMC.includes(kelas));
         if (isMC) {
-          const { data, error } = await supaClient
-            .from('pilihan_moving_class')
-            .select('nis, nama, mapel_moving')
-            .order('nama', { ascending: true });
+          const { data, error } = await supaClient.from('pilihan_moving_class').select('nis, nama, mapel_moving').order('nama', { ascending: true });
           if (error) throw error;
           siswaData = data.filter(s => s.mapel_moving && s.mapel_moving.split(',').map(m => m.trim()).includes(kelas));
         } else {
-          const { data, error } = await supaClient
-            .from('data_siswa')
-            .select('nis, nama')
-            .eq('kelas', kelas)
-            .order('nama', { ascending: true });
+          const { data, error } = await supaClient.from('data_siswa').select('nis, nama').eq('kelas', kelas).order('nama', { ascending: true });
           if (error) throw error;
           siswaData = data;
         }
-
-        // Tanggal awal dan akhir bulan
         const startDate = new Date(tahun, bulan - 1, 1).toISOString();
-        const endDate = new Date(tahun, bulan, 0).toISOString(); // hari terakhir
-
-        const { data: nilaiData, error: nilaiError } = await supaClient
-          .from('nilai')
-          .select('*')
-          .eq('kelas', kelas)
-          .eq('matapelajaran', mapel)
-          .eq('jenistugas', jenis)
-          .gte('tanggal', startDate)
-          .lte('tanggal', endDate)
-          .order('nopenilaian', { ascending: true });
-          
+        const endDate = new Date(tahun, bulan, 0).toISOString();
+        const { data: nilaiData, error: nilaiError } = await supaClient.from('nilai').select('*')
+          .eq('kelas', kelas).eq('matapelajaran', mapel).eq('jenistugas', jenis)
+          .gte('tanggal', startDate).lte('tanggal', endDate).order('nopenilaian', { ascending: true });
         if (nilaiError) throw nilaiError;
-
         const existingNilai = {};
         const daftarPenilaianSet = new Set();
-
         if (nilaiData && nilaiData.length > 0) {
           nilaiData.forEach(row => {
             const no = row.nopenilaian;
@@ -6072,15 +5874,12 @@
             existingNilai[no][row.nis] = row.nilai;
           });
         }
-
         const daftarPenilaian = Array.from(daftarPenilaianSet).sort((a,b) => a-b);
-
         App.pesertaData = siswaData;
         App.existingData = existingNilai;
         App.daftarPenilaian = daftarPenilaian;
         App.currentNoPenilaian = null;
         App.currentMode = null;
-
         document.getElementById('nilaiContainer').style.display = 'block';
         document.getElementById('nilaiTabelArea').style.display = 'none';
         document.getElementById('nilaiTitle').innerText = `Nilai ${jenis} - ${kelas}`;
@@ -6095,11 +5894,7 @@
     function renderDialogPilihanAksi(daftarPenilaian) {
       const ada = daftarPenilaian && daftarPenilaian.length > 0;
       const nextNo = ada ? Math.max(...daftarPenilaian) + 1 : 1;
-
-      let chipHtml = '';
-      let editBtnHtml = '';
-      let hapusBtnHtml = '';
-
+      let chipHtml = '', editBtnHtml = '', hapusBtnHtml = '';
       if (ada) {
         daftarPenilaian.forEach(no => {
           chipHtml += `<span style="background:#e8f5e9;color:#2e7d32;padding:3px 10px;border-radius:12px;margin:2px 3px;font-size:12px;display:inline-block;">✓ Penilaian ke-${no}</span>`;
@@ -6107,19 +5902,15 @@
           hapusBtnHtml += `<button onclick="hapusPenilaian(${no})" style="background:#b71c1c;color:white;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;margin:3px;font-size:13px;">🗑️ Hapus Penilaian ke-${no}</button>`;
         });
       }
-
       const html = `
         <div style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:10px;padding:20px;margin-bottom:15px;">
           <h5 style="margin:0 0 12px 0;color:#37474f;font-size:15px;">📋 Pilih Aksi Penilaian</h5>
-          ${ada
-            ? `<div style="margin-bottom:12px;font-size:13px;color:#555;">Data tersedia: ${chipHtml}</div>`
-            : `<div style="margin-bottom:12px;font-size:13px;color:#999;font-style:italic;">Belum ada data penilaian untuk periode ini.</div>`
-          }
+          ${ada ? `<div style="margin-bottom:12px;font-size:13px;color:#555;">Data tersedia: ${chipHtml}</div>`
+                 : `<div style="margin-bottom:12px;font-size:13px;color:#999;font-style:italic;">Belum ada data penilaian untuk periode ini.</div>`}
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${ada ? '12px' : '0'};">
             <button onclick="mulaiInputBaru(${nextNo})" style="background:#2e7d32;color:white;border:none;border-radius:6px;padding:10px 18px;cursor:pointer;font-size:14px;font-weight:bold;">➕ Input Penilaian Baru (ke-${nextNo})</button>
           </div>
-          ${ada ? `
-          <div style="border-top:1px solid #ddd;padding-top:12px;margin-top:4px;">
+          ${ada ? `<div style="border-top:1px solid #ddd;padding-top:12px;margin-top:4px;">
             <div style="font-size:12px;color:#777;margin-bottom:8px;">Edit atau hapus penilaian yang sudah ada:</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">${editBtnHtml}</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">${hapusBtnHtml}</div>
@@ -6169,40 +5960,25 @@
       const mapel = document.getElementById('nilaiMapel').value;
       const bulan = parseInt(document.getElementById('nilaiBulan').value);
       const tahun = parseInt(document.getElementById('nilaiTahun').value);
-
-      const pesan = `Yakin hapus <b>Penilaian ke-${noPenilaian}</b>?<br><br>`
-        + `Jenis: <b>${jenis}</b> | Kelas: <b>${kelas}</b><br>`
-        + `Mapel: <b>${mapel}</b><br><br>`
-        + `<span style="color:#c62828;">Semua nilai siswa pada penilaian ini akan <b>TERHAPUS PERMANEN</b> dan tidak bisa dikembalikan!</span>`;
-
+      const pesan = `Yakin hapus <b>Penilaian ke-${noPenilaian}</b>?<br><br>Jenis: <b>${jenis}</b> | Kelas: <b>${kelas}</b><br>Mapel: <b>${mapel}</b><br><br><span style="color:#c62828;">Semua nilai siswa pada penilaian ini akan <b>TERHAPUS PERMANEN</b> dan tidak bisa dikembalikan!</span>`;
       showCustomConfirm(pesan, async function() {
         showLoading(true);
         try {
           const startDate = new Date(tahun, bulan - 1, 1).toISOString();
           const endDate = new Date(tahun, bulan, 0).toISOString();
-
-          const { error } = await supaClient
-            .from('nilai')
-            .delete()
-            .eq('kelas', kelas)
-            .eq('matapelajaran', mapel)
-            .eq('jenistugas', jenis)
-            .eq('nopenilaian', noPenilaian)
-            .gte('tanggal', startDate)
-            .lte('tanggal', endDate);
-
+          const { error } = await supaClient.from('nilai').delete()
+            .eq('kelas', kelas).eq('matapelajaran', mapel).eq('jenistugas', jenis)
+            .eq('nopenilaian', noPenilaian).gte('tanggal', startDate).lte('tanggal', endDate);
           if (error) throw error;
-          
           showLoading(false);
           showCustomAlert('Berhasil menghapus data penilaian', 'success');
-          loadSiswaNilai(); // refresh
+          loadSiswaNilai();
         } catch (err) {
           showLoading(false);
           showCustomAlert('Gagal menghapus: ' + err.message, 'error');
         }
       }, 'danger');
     }
-
 
     function renderTbodyNilai(mode, noPenilaian) {
       let html = '';
@@ -6212,17 +5988,7 @@
           const nisVal = App.existingData[noPenilaian][s.nis];
           val = (nisVal !== undefined && nisVal !== '') ? nisVal : '';
         }
-        html += `
-          <tr>
-            <td>${i + 1}</td>
-            <td>${s.nis}</td>
-            <td style="text-align:left;">${s.nama}</td>
-            <td>
-              <input type="number" id="input_nilai_${s.nis}" value="${val}"
-                     min="0" max="100" class="form-control">
-            </td>
-          </tr>
-        `;
+        html += `<tr><td>${i + 1}</td><td>${s.nis}</td><td style="text-align:left;">${s.nama}</td><td><input type="number" id="input_nilai_${s.nis}" value="${val}" min="0" max="100" class="form-control"></td></tr>`;
       });
       document.getElementById('nilaiTbody').innerHTML = html;
     }
@@ -6235,69 +6001,33 @@
       const tahun = parseInt(document.getElementById('nilaiTahun').value);
       const mode = App.currentMode || 'baru';
       const noPenilaian = App.currentNoPenilaian || 1;
-
       const dataToSave = [];
-      // Sesuai legacy Google Sheet: Tgl 1, Jam 12:00:00 lokal
       const tanggalData = new Date(tahun, bulan - 1, 1, 12, 0, 0);
-
       App.pesertaData.forEach(s => {
         const val = document.getElementById(`input_nilai_${s.nis}`).value;
         if (val !== '') {
-          dataToSave.push({
-            tanggal: tanggalData.toISOString(),
-            kelas: kelas,
-            matapelajaran: mapel,
-            nis: s.nis,
-            nama: s.nama,
-            jenistugas: jenis,
-            nopenilaian: noPenilaian,
-            nilai: parseFloat(val),
-            username_guru: App.user.username
-          });
+          dataToSave.push({ tanggal: tanggalData.toISOString(), kelas, matapelajaran: mapel, nis: s.nis, nama: s.nama, jenistugas: jenis, nopenilaian: noPenilaian, nilai: parseFloat(val), username_guru: App.user.username });
         }
       });
-
-      if (dataToSave.length === 0) {
-        showCustomAlert('Tidak ada nilai yang diisi!', 'error');
-        return;
-      }
-
-      // Konfirmasi sebelum simpan via overlay
+      if (dataToSave.length === 0) { showCustomAlert('Tidak ada nilai yang diisi!', 'error'); return; }
       const aksiLabel = mode === 'edit' ? 'memperbarui' : 'menyimpan';
-      const pesan = `Yakin ${aksiLabel} <b>Penilaian ke-${noPenilaian}</b>?<br><br>`
-        + `Jenis: <b>${jenis}</b> | Kelas: <b>${kelas}</b><br>`
-        + `Mapel: <b>${mapel}</b><br>`
-        + `Jumlah siswa dinilai: <b>${dataToSave.length} orang</b>`;
-
+      const pesan = `Yakin ${aksiLabel} <b>Penilaian ke-${noPenilaian}</b>?<br><br>Jenis: <b>${jenis}</b> | Kelas: <b>${kelas}</b><br>Mapel: <b>${mapel}</b><br>Jumlah siswa dinilai: <b>${dataToSave.length} orang</b>`;
       showCustomConfirm(pesan, async function() {
         toggleButtonLoading('#nilaiSimpanBtn', true, '⏳ Menyimpan...');
         try {
-          // Jika edit, hapus dulu data yang lama
           if (mode === 'edit') {
             const startDate = new Date(tahun, bulan - 1, 1).toISOString();
             const endDate = new Date(tahun, bulan, 0).toISOString();
-            
-            const { error: delErr } = await supaClient
-              .from('nilai')
-              .delete()
-              .eq('kelas', kelas)
-              .eq('matapelajaran', mapel)
-              .eq('jenistugas', jenis)
-              .eq('nopenilaian', noPenilaian)
-              .gte('tanggal', startDate)
-              .lte('tanggal', endDate);
+            const { error: delErr } = await supaClient.from('nilai').delete()
+              .eq('kelas', kelas).eq('matapelajaran', mapel).eq('jenistugas', jenis)
+              .eq('nopenilaian', noPenilaian).gte('tanggal', startDate).lte('tanggal', endDate);
             if (delErr) throw delErr;
           }
-
-          const { error: insErr } = await supaClient
-            .from('nilai')
-            .insert(dataToSave);
-            
+          const { error: insErr } = await supaClient.from('nilai').insert(dataToSave);
           if (insErr) throw insErr;
-
           toggleButtonLoading('#nilaiSimpanBtn', false);
           showCustomAlert(`Berhasil ${aksiLabel} data penilaian`, 'success');
-          loadSiswaNilai(); // Refresh & kembali ke dialog
+          loadSiswaNilai();
         } catch (err) {
           toggleButtonLoading('#nilaiSimpanBtn', false);
           showCustomAlert('Gagal: ' + err.message, 'error');
@@ -6306,29 +6036,19 @@
     }
 
     function exportNilaiCSV() {
-      if (!App.pesertaData || App.pesertaData.length === 0) {
-        showError('Klik TAMPILKAN terlebih dahulu!');
-        return;
-      }
+      if (!App.pesertaData || App.pesertaData.length === 0) { showError('Klik TAMPILKAN terlebih dahulu!'); return; }
       const mapel = document.getElementById('nilaiMapel').value;
       const kelas = document.getElementById('nilaiKelas').value;
       const jenis = document.getElementById('nilaiJenis').value;
       const noPenilaian = App.currentNoPenilaian;
-
-      let csv = 'NIS;Nama;Nilai\n'; // Semicolon for Indonesian Excel
+      let csv = 'NIS;Nama;Nilai\n';
       App.pesertaData.forEach(s => {
         let val = '';
-        // Jika tabel input sedang ditampilkan, baca dari input DOM
         const inputEl = document.getElementById(`input_nilai_${s.nis}`);
-        if (inputEl) {
-          val = inputEl.value;
-        } else if (noPenilaian && App.existingData && App.existingData[noPenilaian]) {
-          // Fallback: ambil dari data yang sudah ada di penilaian yang dipilih
-          val = App.existingData[noPenilaian][s.nis] ?? '';
-        }
+        if (inputEl) { val = inputEl.value; }
+        else if (noPenilaian && App.existingData && App.existingData[noPenilaian]) { val = App.existingData[noPenilaian][s.nis] ?? ''; }
         csv += `${s.nis};${s.nama};${val}\n`;
       });
-
       const suffix = noPenilaian ? `_P${noPenilaian}` : '';
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -6341,17 +6061,14 @@
       document.body.removeChild(link);
     }
 
-
     function importNilaiCSV(input) {
       if (!input.files || !input.files[0]) return;
       const file = input.files[0];
       const reader = new FileReader();
-
       reader.onload = function (e) {
         const text = e.target.result;
         const lines = text.split('\n');
         const importedData = {};
-
         for (let i = 1; i < lines.length; i++) {
           const cols = lines[i].split(';');
           if (cols.length >= 3) {
@@ -6360,25 +6077,19 @@
             if (nis) importedData[nis] = val;
           }
         }
-
-        // Update inputs
         App.pesertaData.forEach(s => {
           if (importedData[s.nis] !== undefined) {
             const el = document.getElementById(`input_nilai_${s.nis}`);
             if (el) el.value = importedData[s.nis];
           }
         });
-
         showSuccess('Data excel berhasil diimpor ke tabel!');
-        input.value = ''; // Reset
+        input.value = '';
       };
-
       reader.readAsText(file);
     }
 
 
-
-    // ============================================================
     // ============ FUNGSI LAPORAN EKSKUL ========================
     // ============================================================
 
