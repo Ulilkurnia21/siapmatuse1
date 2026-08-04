@@ -8026,114 +8026,22 @@
             </h4>
             ${tableHtml}
           </div>
+          
+          <!-- TABEL DISIPLIN GURU -->
+          <div id="pimpinan_disiplin_container" style="background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-top: 30px;"></div>
+          
         </div>
       `;
 
       document.getElementById('pimpinan_beranda').innerHTML = html;
-    }
-
-    function loadPimpinanDisiplin(jadwalHariIni) {
-      if (!jadwalHariIni || jadwalHariIni.length === 0) {
-        document.getElementById('pimpinan_disiplin_container').innerHTML = `
-          <h4 style="color:#2e7d32; margin-bottom:10px; text-align:left;">📋 DISIPLIN GURU HARI INI</h4>
-          <p style="color:#aaa; font-size:13px; text-align:left;">Data disiplin belum tersedia.</p>
-        `;
-        return;
-      }
-
-      // Gunakan AppCache jika ada
-      const cachedDisiplin = AppCache.get('dashboardPimpinanDisiplin');
-      if (cachedDisiplin) {
-        renderTabelDisiplin(cachedDisiplin);
-        return;
-      }
-
-      google.script.run
-        .withSuccessHandler(function (res) {
-          if (res.success) {
-            AppCache.set('dashboardPimpinanDisiplin', res.data, 10);
-            renderTabelDisiplin(res.data);
-          } else {
-            document.getElementById('pimpinan_disiplin_container').innerHTML = '<p style="color:red;">Error memuat disiplin: ' + res.error + '</p>';
-          }
-        })
-        .withFailureHandler(function (err) {
-          document.getElementById('pimpinan_disiplin_container').innerHTML = '<p style="color:red;">Koneksi gagal: ' + err + '</p>';
-        })
-        .getDisiplinGuruHariIni(jadwalHariIni);
-    }
-
-    function renderTabelDisiplin(disiplin) {
-      let html = `
-        <h4 style="color:#2e7d32; margin-bottom:16px; display:flex; align-items:center; gap:10px; text-align:left;">
-          📋 DISIPLIN GURU HARI INI
-          <span style="font-size:0.85rem; font-weight:normal; background:#e8f5e9; color:#2e7d32; padding:3px 10px; border-radius:20px;">Harian</span>
-        </h4>
-      `;
-
-      if (disiplin && disiplin.length > 0) {
-        let rowsHtml = '';
-        disiplin.forEach((d, idx) => {
-          let absenBadge = '';
-          if (d.absenOke) {
-            absenBadge = `<span class="disiplin-badge disiplin-ok">✅ Absen Oke</span>`;
-          } else {
-            let pesanDetail = '';
-            if (d.pesanAbsenBolong && d.pesanAbsenBolong.length > 0) {
-              d.pesanAbsenBolong.forEach(p => {
-                const jamStr = p.jamBolong.join(', ');
-                pesanDetail += `<div class="disiplin-detail">Absen di Kelas <b>${p.kelas}</b> belum diisi pada jam ${jamStr}</div>`;
-              });
-            }
-            absenBadge = `<span class="disiplin-badge disiplin-warn">⚠️ Belum Lengkap</span>${pesanDetail}`;
-          }
-
-          const jurnalBadge = d.jurnalOke
-            ? `<span class="disiplin-badge disiplin-ok">✅ Jurnal Oke</span>`
-            : `<span class="disiplin-badge disiplin-warn">⚠️ Belum membuat jurnal harian</span>`;
-
-          rowsHtml += `
-            <tr>
-              <td style="text-align:center; width:45px;">${idx + 1}</td>
-              <td class="disiplin-nama-col">
-                <div class="disiplin-nama">${d.namaGuru}</div>
-                <div class="disiplin-status-mobile">
-                  ${absenBadge}
-                  ${jurnalBadge}
-                </div>
-              </td>
-              <td class="disiplin-status-desktop">
-                ${absenBadge}
-                ${jurnalBadge}
-              </td>
-            </tr>
-          `;
-        });
-
-        html += `
-          <div class="table-container" style="overflow-x:auto;">
-            <table class="disiplin-table">
-              <thead>
-                <tr>
-                  <th style="width:45px; text-align:center;">No</th>
-                  <th>Nama Guru</th>
-                  <th class="disiplin-status-desktop">Status</th>
-                </tr>
-              </thead>
-              <tbody>${rowsHtml}</tbody>
-            </table>
-          </div>
-        `;
-      } else {
-        html += `<p style="color:#aaa; font-size:13px; text-align:left;">Data disiplin belum tersedia.</p>`;
-      }
-
-      const container = document.getElementById('pimpinan_disiplin_container');
-      if (container) {
-        container.innerHTML = html;
-        container.style.textAlign = 'left';
+      
+      // Panggil fungsi Disiplin dari DashboardPimpinan.js
+      if (typeof loadPimpinanDisiplin === 'function') {
+        loadPimpinanDisiplin();
       }
     }
+
+    // Fungsi Disiplin Guru sekarang dipindahkan ke file DashboardPimpinan.js
 
 
     // ============================================================
@@ -9281,6 +9189,7 @@
 
   <?!= include("App"); ?>
   <script src="Laporan.js"></script>
+  <script src="DashboardPimpinan.js"></script>
 </body>
 
 </html>
