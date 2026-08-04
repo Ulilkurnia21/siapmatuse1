@@ -721,15 +721,42 @@ async function downloadLaporanNilai(format) {
     const namaGuru = App.user.nama || App.user.username;
     const nipGuru = App.user.profil?.nip || '-';
 
+    // Hitung rata-rata per siswa (nilai kosong = 0, tetap dihitung)
+    // Total kolom yang ada adalah jumlah kolom penilaian
+    const totalKolom = kolom.length;
+
+    const siswaDenganRata = siswaData.map(s => {
+      let total = 0;
+      kolom.forEach(k => {
+        const v = nilaiMap[s.nis] ? nilaiMap[s.nis][k.key] : undefined;
+        total += (v !== undefined && v !== null) ? parseFloat(v) : 0;
+      });
+      const rata = totalKolom > 0 ? total / totalKolom : 0;
+      return { ...s, rata: rata };
+    });
+
+    // Hitung rangking: rata tertinggi = rangking 1
+    // Siswa dengan rata sama mendapat rangking yang sama (dense ranking)
+    const sortedRata = [...siswaDenganRata].sort((a, b) => b.rata - a.rata);
+    const rangkingMap = {};
+    let rank = 1;
+    sortedRata.forEach((s, i) => {
+      if (i > 0 && s.rata < sortedRata[i - 1].rata) rank = i + 1;
+      rangkingMap[s.nis] = rank;
+    });
+
     // Bangun HTML tabel
     let thKolom = kolom.map(k => `<th>${k.label}</th>`).join('');
     let tbody = '';
-    siswaData.forEach((s, idx) => {
+    siswaDenganRata.forEach((s, idx) => {
       const vals = kolom.map(k => {
-        const v = nilaiMap[s.nis] ? nilaiMap[s.nis][k.key] : '';
-        return `<td>${v !== undefined && v !== null ? v : '-'}</td>`;
+        const v = nilaiMap[s.nis] ? nilaiMap[s.nis][k.key] : undefined;
+        const tampil = (v !== undefined && v !== null) ? v : 0;
+        return `<td>${tampil}</td>`;
       }).join('');
-      tbody += `<tr><td>${idx+1}</td><td>${s.nis}</td><td style="text-align:left">${s.nama}</td>${vals}</tr>`;
+      const rataStr = s.rata.toFixed(2);
+      const rankStr = rangkingMap[s.nis];
+      tbody += `<tr><td>${idx+1}</td><td>${s.nis}</td><td style="text-align:left">${s.nama}</td>${vals}<td style="background:#fff9c4;font-weight:bold;">${rataStr}</td><td style="background:#e3f2fd;font-weight:bold;">${rankStr}</td></tr>`;
     });
 
     const html = `
@@ -752,7 +779,7 @@ async function downloadLaporanNilai(format) {
     <div class="header-item"><span class="label">Mata Pelajaran</span><span>: ${mapel}</span></div>
     <div class="header-item"><span class="label">Kelas</span><span>: ${kelas}</span></div>
     <table>
-      <thead><tr><th>No</th><th>NIS</th><th>Nama Siswa</th>${thKolom}</tr></thead>
+      <thead><tr><th>No</th><th>NIS</th><th>Nama Siswa</th>${thKolom}<th style="background:#f9a825 !important;">RATA-RATA</th><th style="background:#1976d2 !important;">RANGKING</th></tr></thead>
       <tbody>${tbody}</tbody>
     </table>
     <div style="margin-top:50px; text-align:right;">
