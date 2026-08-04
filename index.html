@@ -5896,44 +5896,125 @@
       document.getElementById('nilai').innerHTML = html;
     }
 
-    function loadNilaiBelumLengkap() {
-      const kelas = document.getElementById('filterKelasBelumLengkap').value;
+    async function loadNilaiBelumLengkap() {
+      const kelasFilter = document.getElementById('filterKelasBelumLengkap').value;
       const tbody = document.getElementById('tbodyNilaiBelumLengkap');
       tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Memuat data... ⏳</td></tr>';
       
-      google.script.run
-        .withSuccessHandler(function(r) {
-          if (r.success) {
-            let html = '';
-            if (r.data.length === 0) {
-              html = '<tr><td colspan="4" style="text-align:center; color:#2e7d32; font-weight:bold;">Tuntas! Semua siswa sudah memiliki nilai lengkap.</td></tr>';
-            } else {
-              r.data.forEach((d, i) => {
-                html += `<tr>
-                  <td>${i+1}</td>
-                  <td>${d.kelas}</td>
-                  <td style="text-align:left;">${d.nama}</td>
-                  <td style="text-align:left; color:#d32f2f;"><b>${d.mapel}</b>: ${d.nilaiBelum.join(', ')}</td>
-                </tr>`;
-              });
-            }
-            tbody.innerHTML = html;
-          } else {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:red;">Error: ${r.error}</td></tr>`;
-          }
-        })
-        .withFailureHandler(function(e) {
-          tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:red;">Gagal koneksi: ${e}</td></tr>`;
-        })
-        .getSiswaNilaiBelumLengkap(App.user.profil.email, kelas);
+      try {
+        const guruEmail = App.user.profil.email;
+        
+        let query = supaClient.from('nilai').select('*').eq('username_guru', guruEmail);
+        if (kelasFilter !== 'ALL') query = query.eq('kelas', kelasFilter);
+        
+        const { data: nilaiData, error: nilaiError } = await query;
+        if (nilaiError) throw nilaiError;
+
+        if (!nilaiData || nilaiData.length === 0) {
+           tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#2e7d32; font-weight:bold;">Tuntas! Semua siswa sudah memiliki nilai lengkap (atau belum ada data).</td></tr>';
+           return;
+        }
+
+        const guruInput = {};
+        const mapelPerKelas = {};
+        const jenisPerMapelKelas = {};
+        
+        nilaiData.forEach(row => {
+           const kelas = row.kelas;
+           const mapel = row.matapelajaran;
+           const noPen = row.nopenilaian || 1;
+           const jenis = row.jenistugas + noPen;
+           const nis = row.nis;
+           
+           if (!guruInput[kelas]) {
+             guruInput[kelas] = {};
+             mapelPerKelas[kelas] = new Set();
+             jenisPerMapelKelas[kelas] = {};
+           }
+           if (!guruInput[kelas][mapel]) {
+             guruInput[kelas][mapel] = {};
+             jenisPerMapelKelas[kelas][mapel] = new Set();
+           }
+           if (!guruInput[kelas][mapel][jenis]) {
+             guruInput[kelas][mapel][jenis] = new Set();
+           }
+           
+           mapelPerKelas[kelas].add(mapel);
+           jenisPerMapelKelas[kelas][mapel].add(jenis);
+           guruInput[kelas][mapel][jenis].add(nis);
+        });
+        
+        const hasil = [];
+        for (const kelas in guruInput) {
+           let semuaSiswa = [];
+           if (kelas.startsWith('F1') || kelas.startsWith('F2')) { 
+             const { data, error } = await supaClient
+               .from('pilihan_moving_class')
+               .select('nis, data_siswa!inner(nama)')
+               .eq('kelas_pilihan', kelas);
+             if (!error && data) {
+               semuaSiswa = data.map(d => ({ nis: d.nis, nama: d.data_siswa.nama }));
+             }
+           } else {
+             const { data, error } = await supaClient
+               .from('data_siswa')
+               .select('nis, nama')
+               .eq('kelas', kelas);
+             if (!error && data) semuaSiswa = data;
+           }
+           
+           for (const mapel of mapelPerKelas[kelas]) {
+             const semuaJenis = Array.from(jenisPerMapelKelas[kelas][mapel]);
+             for (const siswa of semuaSiswa) {
+               const belumLengkap = [];
+               for (const jenis of semuaJenis) {
+                 if (!guruInput[kelas][mapel][jenis].has(siswa.nis)) {
+                   belumLengkap.push(jenis);
+                 }
+               }
+               if (belumLengkap.length > 0) {
+                 hasil.push({
+                   nama: siswa.nama,
+                   kelas: kelas,
+                   mapel: mapel,
+                   nilaiBelum: belumLengkap
+                 });
+               }
+             }
+           }
+        }
+        
+        hasil.sort((a, b) => {
+          if (a.kelas !== b.kelas) return a.kelas.localeCompare(b.kelas);
+          return a.nama.localeCompare(b.nama);
+        });
+
+        if (hasil.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#2e7d32; font-weight:bold;">Tuntas! Semua siswa sudah memiliki nilai lengkap.</td></tr>';
+        } else {
+          let html = '';
+          hasil.forEach((d, i) => {
+            html += `<tr>
+              <td>${i+1}</td>
+              <td>${d.kelas}</td>
+              <td style="text-align:left;">${d.nama}</td>
+              <td style="text-align:left; color:#d32f2f;"><b>${d.mapel}</b>: ${d.nilaiBelum.join(', ')}</td>
+            </tr>`;
+          });
+          tbody.innerHTML = html;
+        }
+
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:red;">Gagal koneksi: ${e.message}</td></tr>`;
+      }
     }
 
-    function loadSiswaNilai() {
+    async function loadSiswaNilai() {
       const kelas = document.getElementById('nilaiKelas').value;
       const mapel = document.getElementById('nilaiMapel').value;
       const jenis = document.getElementById('nilaiJenis').value;
-      const bulan = document.getElementById('nilaiBulan').value;
-      const tahun = document.getElementById('nilaiTahun').value;
+      const bulan = parseInt(document.getElementById('nilaiBulan').value);
+      const tahun = parseInt(document.getElementById('nilaiTahun').value);
 
       if (!kelas || !mapel) {
         showError('Pilih kelas dan mapel!');
@@ -5941,29 +6022,71 @@
       }
 
       showLoading(true);
-      google.script.run
-        .withSuccessHandler(function (r) {
-          showLoading(false);
-          if (r.success) {
-            App.pesertaData = r.siswa;
-            App.existingData = r.existingNilai || {};
-            App.daftarPenilaian = r.daftarPenilaian || [];
-            App.currentNoPenilaian = null;
-            App.currentMode = null;
-            // Tampilkan container & reset ke dialog pilihan
-            document.getElementById('nilaiContainer').style.display = 'block';
-            document.getElementById('nilaiTabelArea').style.display = 'none';
-            document.getElementById('nilaiTitle').innerText = `Nilai ${jenis} - ${kelas}`;
-            renderDialogPilihanAksi(App.daftarPenilaian);
-          } else {
-            showError(r.error);
-          }
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-          showError('Gagal memuat data: ' + e);
-        })
-        .getDataNilaiForInput(kelas, mapel, jenis, bulan, tahun, App.user.profil.email);
+      try {
+        let siswaData = [];
+        if (kelas.startsWith('F1') || kelas.startsWith('F2')) {
+          const { data, error } = await supaClient
+            .from('pilihan_moving_class')
+            .select('nis, data_siswa!inner(nama)')
+            .eq('kelas_pilihan', kelas)
+            .order('nama', { referencedTable: 'data_siswa', ascending: true });
+          if (error) throw error;
+          siswaData = data.map(d => ({ nis: d.nis, nama: d.data_siswa.nama }));
+        } else {
+          const { data, error } = await supaClient
+            .from('data_siswa')
+            .select('nis, nama')
+            .eq('kelas', kelas)
+            .order('nama', { ascending: true });
+          if (error) throw error;
+          siswaData = data;
+        }
+
+        // Tanggal awal dan akhir bulan
+        const startDate = new Date(tahun, bulan - 1, 1).toISOString();
+        const endDate = new Date(tahun, bulan, 0).toISOString(); // hari terakhir
+
+        const { data: nilaiData, error: nilaiError } = await supaClient
+          .from('nilai')
+          .select('*')
+          .eq('kelas', kelas)
+          .eq('matapelajaran', mapel)
+          .eq('jenistugas', jenis)
+          .gte('tanggal', startDate)
+          .lte('tanggal', endDate)
+          .order('nopenilaian', { ascending: true });
+          
+        if (nilaiError) throw nilaiError;
+
+        const existingNilai = {};
+        const daftarPenilaianSet = new Set();
+
+        if (nilaiData && nilaiData.length > 0) {
+          nilaiData.forEach(row => {
+            const no = row.nopenilaian;
+            daftarPenilaianSet.add(no);
+            if (!existingNilai[no]) existingNilai[no] = {};
+            existingNilai[no][row.nis] = row.nilai;
+          });
+        }
+
+        const daftarPenilaian = Array.from(daftarPenilaianSet).sort((a,b) => a-b);
+
+        App.pesertaData = siswaData;
+        App.existingData = existingNilai;
+        App.daftarPenilaian = daftarPenilaian;
+        App.currentNoPenilaian = null;
+        App.currentMode = null;
+
+        document.getElementById('nilaiContainer').style.display = 'block';
+        document.getElementById('nilaiTabelArea').style.display = 'none';
+        document.getElementById('nilaiTitle').innerText = `Nilai ${jenis} - ${kelas}`;
+        renderDialogPilihanAksi(App.daftarPenilaian);
+        showLoading(false);
+      } catch (err) {
+        showLoading(false);
+        showError('Gagal memuat data: ' + err.message);
+      }
     }
 
     function renderDialogPilihanAksi(daftarPenilaian) {
@@ -6041,31 +6164,39 @@
       const jenis = document.getElementById('nilaiJenis').value;
       const kelas = document.getElementById('nilaiKelas').value;
       const mapel = document.getElementById('nilaiMapel').value;
-      const bulan = document.getElementById('nilaiBulan').value;
-      const tahun = document.getElementById('nilaiTahun').value;
+      const bulan = parseInt(document.getElementById('nilaiBulan').value);
+      const tahun = parseInt(document.getElementById('nilaiTahun').value);
 
       const pesan = `Yakin hapus <b>Penilaian ke-${noPenilaian}</b>?<br><br>`
         + `Jenis: <b>${jenis}</b> | Kelas: <b>${kelas}</b><br>`
         + `Mapel: <b>${mapel}</b><br><br>`
         + `<span style="color:#c62828;">Semua nilai siswa pada penilaian ini akan <b>TERHAPUS PERMANEN</b> dan tidak bisa dikembalikan!</span>`;
 
-      showCustomConfirm(pesan, function() {
+      showCustomConfirm(pesan, async function() {
         showLoading(true);
-        google.script.run
-          .withSuccessHandler(function (r) {
-            showLoading(false);
-            if (r.success) {
-              showCustomAlert(r.message, 'success');
-              loadSiswaNilai(); // refresh
-            } else {
-              showCustomAlert(r.error, 'error');
-            }
-          })
-          .withFailureHandler(function (e) {
-            showLoading(false);
-            showCustomAlert('Gagal menghapus: ' + e, 'error');
-          })
-          .deleteNilaiPenilaian(mapel, kelas, jenis, bulan, tahun, noPenilaian);
+        try {
+          const startDate = new Date(tahun, bulan - 1, 1).toISOString();
+          const endDate = new Date(tahun, bulan, 0).toISOString();
+
+          const { error } = await supaClient
+            .from('nilai')
+            .delete()
+            .eq('kelas', kelas)
+            .eq('matapelajaran', mapel)
+            .eq('jenistugas', jenis)
+            .eq('nopenilaian', noPenilaian)
+            .gte('tanggal', startDate)
+            .lte('tanggal', endDate);
+
+          if (error) throw error;
+          
+          showLoading(false);
+          showCustomAlert('Berhasil menghapus data penilaian', 'success');
+          loadSiswaNilai(); // refresh
+        } catch (err) {
+          showLoading(false);
+          showCustomAlert('Gagal menghapus: ' + err.message, 'error');
+        }
       }, 'danger');
     }
 
@@ -6097,16 +6228,29 @@
       const kelas = document.getElementById('nilaiKelas').value;
       const mapel = document.getElementById('nilaiMapel').value;
       const jenis = document.getElementById('nilaiJenis').value;
-      const bulan = document.getElementById('nilaiBulan').value;
-      const tahun = document.getElementById('nilaiTahun').value;
+      const bulan = parseInt(document.getElementById('nilaiBulan').value);
+      const tahun = parseInt(document.getElementById('nilaiTahun').value);
       const mode = App.currentMode || 'baru';
       const noPenilaian = App.currentNoPenilaian || 1;
 
       const dataToSave = [];
+      // Sesuai legacy Google Sheet: Tgl 1, Jam 12:00:00 lokal
+      const tanggalData = new Date(tahun, bulan - 1, 1, 12, 0, 0);
+
       App.pesertaData.forEach(s => {
         const val = document.getElementById(`input_nilai_${s.nis}`).value;
         if (val !== '') {
-          dataToSave.push({ nis: s.nis, nama: s.nama, nilai: val });
+          dataToSave.push({
+            tanggal: tanggalData.toISOString(),
+            kelas: kelas,
+            matapelajaran: mapel,
+            nis: s.nis,
+            nama: s.nama,
+            jenistugas: jenis,
+            nopenilaian: noPenilaian,
+            nilai: parseFloat(val),
+            username_guru: App.user.profil.email
+          });
         }
       });
 
@@ -6122,26 +6266,39 @@
         + `Mapel: <b>${mapel}</b><br>`
         + `Jumlah siswa dinilai: <b>${dataToSave.length} orang</b>`;
 
-      showCustomConfirm(pesan, function() {
+      showCustomConfirm(pesan, async function() {
         toggleButtonLoading('#nilaiSimpanBtn', true, '⏳ Menyimpan...');
-        google.script.run
-          .withSuccessHandler(function (r) {
-            toggleButtonLoading('#nilaiSimpanBtn', false);
-            if (r.success) {
-              showCustomAlert(r.message, 'success');
-              loadSiswaNilai(); // Refresh & kembali ke dialog
-            } else {
-              showCustomAlert(r.error, 'error');
-            }
-          })
-          .withFailureHandler(function (e) {
-            toggleButtonLoading('#nilaiSimpanBtn', false);
-            showCustomAlert('Gagal: ' + e, 'error');
-          })
-          .simpanNilaiBatch(
-            dataToSave.map(d => Object.assign(d, { userEmail: App.user.profil.email })),
-            mapel, kelas, jenis, bulan, tahun, noPenilaian, mode
-          );
+        try {
+          // Jika edit, hapus dulu data yang lama
+          if (mode === 'edit') {
+            const startDate = new Date(tahun, bulan - 1, 1).toISOString();
+            const endDate = new Date(tahun, bulan, 0).toISOString();
+            
+            const { error: delErr } = await supaClient
+              .from('nilai')
+              .delete()
+              .eq('kelas', kelas)
+              .eq('matapelajaran', mapel)
+              .eq('jenistugas', jenis)
+              .eq('nopenilaian', noPenilaian)
+              .gte('tanggal', startDate)
+              .lte('tanggal', endDate);
+            if (delErr) throw delErr;
+          }
+
+          const { error: insErr } = await supaClient
+            .from('nilai')
+            .insert(dataToSave);
+            
+          if (insErr) throw insErr;
+
+          toggleButtonLoading('#nilaiSimpanBtn', false);
+          showCustomAlert(`Berhasil ${aksiLabel} data penilaian`, 'success');
+          loadSiswaNilai(); // Refresh & kembali ke dialog
+        } catch (err) {
+          toggleButtonLoading('#nilaiSimpanBtn', false);
+          showCustomAlert('Gagal: ' + err.message, 'error');
+        }
       }, 'warning');
     }
 
