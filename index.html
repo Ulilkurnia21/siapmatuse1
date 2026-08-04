@@ -5864,7 +5864,6 @@
               <div class="form-group">
                 <label>Filter Kelas</label>
                 <select id="filterKelasBelumLengkap" onchange="loadNilaiBelumLengkap()">
-                  <option value="ALL">Semua Kelas</option>
                   ${kelasOptions.replace('<option value="">Pilih Kelas</option>', '')}
                 </select>
               </div>
@@ -5894,6 +5893,8 @@
       `;
 
       document.getElementById('nilai').innerHTML = html;
+      // Auto-load kelas pertama yang diajar guru
+      loadNilaiBelumLengkap();
     }
 
     async function loadNilaiBelumLengkap() {
@@ -5902,10 +5903,10 @@
       tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Memuat data... ⏳</td></tr>';
       
       try {
-        const guruEmail = App.user.profil.email;
+        const usernameGuru = App.user.username;
         
-        let query = supaClient.from('nilai').select('*').eq('username_guru', guruEmail);
-        if (kelasFilter !== 'ALL') query = query.eq('kelas', kelasFilter);
+        let query = supaClient.from('nilai').select('*').eq('username_guru', usernameGuru);
+        if (kelasFilter) query = query.eq('kelas', kelasFilter);
         
         const { data: nilaiData, error: nilaiError } = await query;
         if (nilaiError) throw nilaiError;
@@ -6251,7 +6252,7 @@
             jenistugas: jenis,
             nopenilaian: noPenilaian,
             nilai: parseFloat(val),
-            username_guru: App.user.profil.email
+            username_guru: App.user.username
           });
         }
       });
