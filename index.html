@@ -5947,13 +5947,14 @@
         const hasil = [];
         for (const kelas in guruInput) {
            let semuaSiswa = [];
-           if (kelas.startsWith('F1') || kelas.startsWith('F2')) { 
+           const isMC = (App.guruData && App.guruData.kelasMC && App.guruData.kelasMC.includes(kelas)) || 
+                        (App.config && App.config.kelasMC && App.config.kelasMC.includes(kelas));
+           if (isMC) { 
              const { data, error } = await supaClient
                .from('pilihan_moving_class')
-               .select('nis, data_siswa!inner(nama)')
-               .eq('kelas_pilihan', kelas);
+               .select('nis, nama, mapel_moving');
              if (!error && data) {
-               semuaSiswa = data.map(d => ({ nis: d.nis, nama: d.data_siswa.nama }));
+               semuaSiswa = data.filter(s => s.mapel_moving && s.mapel_moving.split(',').map(m => m.trim()).includes(kelas));
              }
            } else {
              const { data, error } = await supaClient
@@ -6024,14 +6025,15 @@
       showLoading(true);
       try {
         let siswaData = [];
-        if (kelas.startsWith('F1') || kelas.startsWith('F2')) {
+        const isMC = (App.guruData && App.guruData.kelasMC && App.guruData.kelasMC.includes(kelas)) || 
+                     (App.config && App.config.kelasMC && App.config.kelasMC.includes(kelas));
+        if (isMC) {
           const { data, error } = await supaClient
             .from('pilihan_moving_class')
-            .select('nis, data_siswa!inner(nama)')
-            .eq('kelas_pilihan', kelas)
-            .order('nama', { referencedTable: 'data_siswa', ascending: true });
+            .select('nis, nama, mapel_moving')
+            .order('nama', { ascending: true });
           if (error) throw error;
-          siswaData = data.map(d => ({ nis: d.nis, nama: d.data_siswa.nama }));
+          siswaData = data.filter(s => s.mapel_moving && s.mapel_moving.split(',').map(m => m.trim()).includes(kelas));
         } else {
           const { data, error } = await supaClient
             .from('data_siswa')
