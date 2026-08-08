@@ -2813,11 +2813,11 @@
         }
         
         // Simpan shalat jika status ATAU jumlah diisi
-        if (shalatSt || (shalatJmlRaw && shalatJmlRaw !== '')) {
+        if (shalatSt && ['Y','T','H'].includes(shalatSt)) {
           dataShalat.push({
             nis, nama, kelas,
             tanggal: tanggal,
-            status: shalatSt || '-',
+            status: shalatSt,
             jumlah: shalatJml,
             username_guru: App.user.username
           });
@@ -3025,11 +3025,11 @@
           shalatJml = parseInt(shalatJmlRaw);
         }
 
-        if (shalatSt || (shalatJmlRaw && shalatJmlRaw !== '')) {
+        if (shalatSt && ['Y','T','H'].includes(shalatSt)) {
           dataShalat.push({
             nis, nama, kelas,
             tanggal: tanggal,
-            status: shalatSt || '-',
+            status: shalatSt,
             jumlah: shalatJml,
             username_guru: App.user.username
           });
