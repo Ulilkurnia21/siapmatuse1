@@ -2590,7 +2590,9 @@
                 <th>No</th>
                 <th>NIS</th>
                 <th>Nama</th>
-                <th colspan="6">Status Absensi + 🕌 Shalat Kmrn</th>
+                <th>Absensi</th>
+                <th id="thEditShalatSt" style="display:none">🕌 Status Shalat</th>
+                <th id="thEditShalatJml" style="display:none">🕌 Jumlah</th>
               </tr>
             </thead>
             <tbody id="editTbody"></tbody>
@@ -2610,7 +2612,9 @@
                 <th>No</th>
                 <th>NIS</th>
                 <th>Nama</th>
-                <th colspan="6">Status Absensi + 🕌 Shalat Kmrn</th>
+                <th>Absensi</th>
+                <th id="thAbsenShalatSt" style="display:none">🕌 Status Shalat</th>
+                <th id="thAbsenShalatJml" style="display:none">🕌 Jumlah</th>
               </tr>
             </thead>
             <tbody id="absenTbody"></tbody>
@@ -2682,7 +2686,15 @@
 
     function displaySiswa(siswa, dataShalat) {
       const jam = document.getElementById('absenJam').value;
-      const showShalat = (jam === '1' || jam === '7') ? 'flex' : 'none';
+      const isShalatJam = (jam === '1' || jam === '7');
+      const showShalatCell = isShalatJam ? 'table-cell' : 'none';
+
+      // Tampilkan/sembunyikan header kolom shalat
+      const thSt = document.getElementById('thAbsenShalatSt');
+      const thJml = document.getElementById('thAbsenShalatJml');
+      if (thSt) thSt.style.display = isShalatJam ? 'table-cell' : 'none';
+      if (thJml) thJml.style.display = isShalatJam ? 'table-cell' : 'none';
+
       dataShalat = dataShalat || {};
       let html = '';
       siswa.forEach((s, i) => {
@@ -2696,7 +2708,7 @@
             <td>${i + 1}</td>
             <td>${s.nis}</td>
             <td style="text-align:left; white-space:normal; word-wrap:break-word;">${s.nama}</td>
-            <td colspan="6">
+            <td>
               <div class="radio-group">
                 <div class="radio-item">
                   <input type="radio" name="status_${s.nis}" value="H" onchange="setStatus('${s.nis}','H')" checked>
@@ -2724,23 +2736,26 @@
                 </div>
               </div>
               <input type="hidden" id="st_${s.nis}" value="H">
-              <div class="shalat-row" style="display:${showShalat};align-items:center;gap:6px;margin-top:6px;padding-top:5px;border-top:1px dashed #b39ddb;flex-wrap:wrap;">
-                <span style="font-size:11px;color:#7e57c2;font-weight:bold;">🕌 Kmrn:</span>
-                <select id="shalat_jml_${s.nis}" style="padding:2px 4px;font-size:12px;border-radius:4px;border:1px solid #b39ddb;width:50px;">${jmlOpts}</select>
-                <label style="display:flex;align-items:center;gap:2px;cursor:pointer;font-size:12px;">
-                  <input type="radio" name="shalat_${s.nis}" value="Y" onchange="setShalatStatus('${s.nis}','Y')" ${shalatSt==='Y'?'checked':''}>
-                  <span style="color:#2e7d32;font-weight:bold;">Y</span>
+            </td>
+            <td style="display:${showShalatCell}; vertical-align:middle;">
+              <div style="display:flex; gap:6px; justify-content:center;">
+                <label style="display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;">
+                  <input type="radio" name="shalat_${s.nis}" value="Y" onchange="setShalatStatus('${s.nis}','Y')" ${shalatSt==='Y'?'checked':''} style="width:20px;height:20px;accent-color:#2e7d32;">
+                  <span style="font-size:12px;color:#2e7d32;font-weight:bold;">Y</span>
                 </label>
-                <label style="display:flex;align-items:center;gap:2px;cursor:pointer;font-size:12px;">
-                  <input type="radio" name="shalat_${s.nis}" value="T" onchange="setShalatStatus('${s.nis}','T')" ${shalatSt==='T'?'checked':''}>
-                  <span style="color:#c62828;font-weight:bold;">T</span>
+                <label style="display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;">
+                  <input type="radio" name="shalat_${s.nis}" value="T" onchange="setShalatStatus('${s.nis}','T')" ${shalatSt==='T'?'checked':''} style="width:20px;height:20px;accent-color:#c62828;">
+                  <span style="font-size:12px;color:#c62828;font-weight:bold;">T</span>
                 </label>
-                <label style="display:flex;align-items:center;gap:2px;cursor:pointer;font-size:12px;">
-                  <input type="radio" name="shalat_${s.nis}" value="H" onchange="setShalatStatus('${s.nis}','H')" ${shalatSt==='H'?'checked':''}>
-                  <span style="color:#ff9800;font-weight:bold;">H</span>
+                <label style="display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;">
+                  <input type="radio" name="shalat_${s.nis}" value="H" onchange="setShalatStatus('${s.nis}','H')" ${shalatSt==='H'?'checked':''} style="width:20px;height:20px;accent-color:#ff9800;">
+                  <span style="font-size:12px;color:#ff9800;font-weight:bold;">H</span>
                 </label>
-                <input type="hidden" id="shalat_st_${s.nis}" value="${shalatSt}">
               </div>
+              <input type="hidden" id="shalat_st_${s.nis}" value="${shalatSt}">
+            </td>
+            <td style="display:${showShalatCell}; vertical-align:middle; text-align:center;">
+              <select id="shalat_jml_${s.nis}" style="padding:4px 6px;font-size:14px;font-weight:bold;border-radius:6px;border:2px solid #b39ddb;width:55px;text-align:center;">${jmlOpts}</select>
             </td>
           </tr>
         `;
@@ -2935,7 +2950,13 @@
 
     function displaySiswaForEdit(siswa, existingStatus, existingShalat) {
       const jam = document.getElementById('editJam').value;
-      const showShalat = (jam === '1' || jam === '7') ? 'table-cell' : 'none';
+      const isShalatJam = (jam === '1' || jam === '7');
+      const showShalat = isShalatJam ? 'table-cell' : 'none';
+      // Tampilkan/sembunyikan header kolom shalat
+      const thSt = document.getElementById('thEditShalatSt');
+      const thJml = document.getElementById('thEditShalatJml');
+      if (thSt) thSt.style.display = showShalat;
+      if (thJml) thJml.style.display = showShalat;
       existingShalat = existingShalat || {};
       const tbody = document.getElementById('editTbody');
       let html = '';
@@ -2967,8 +2988,8 @@
             <td>${index + 1}</td>
             <td>${s.nis}</td>
             <td style="text-align:left; font-weight:bold;">${s.nama}</td>
-            <td>
-              <select id="edit_st_${s.nis}" ${requiredLabel}>
+            <td style="vertical-align:middle;">
+              <select id="edit_st_${s.nis}" ${requiredLabel} style="padding:6px 10px;font-size:13px;border-radius:8px;border:2px solid #e0e0e0;font-weight:bold;min-width:120px;">
                 <option value="">- Pilih -</option>
                 <option value="H" ${stH}>H - Hadir</option>
                 <option value="A" ${stA}>A - Alpa</option>
@@ -2978,16 +2999,25 @@
                 <option value="T" ${stT}>T - Terlambat</option>
               </select>
             </td>
-            <td style="display:${showShalat}">
-              <select id="edit_shalat_st_${s.nis}">
-                <option value="">--</option>
-                <option value="Y" ${shY}>Y</option>
-                <option value="T" ${shT}>T</option>
-                <option value="H" ${sh_H}>H</option>
-              </select>
+            <td style="display:${showShalat}; vertical-align:middle; text-align:center;">
+              <div style="display:flex; gap:6px; justify-content:center;">
+                <label style="display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;">
+                  <input type="radio" name="shalat_edit_${s.nis}" value="Y" onchange="document.getElementById('edit_shalat_st_${s.nis}').value='Y'" ${shalatVal==='Y'?'checked':''} style="width:20px;height:20px;accent-color:#2e7d32;">
+                  <span style="font-size:12px;color:#2e7d32;font-weight:bold;">Y</span>
+                </label>
+                <label style="display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;">
+                  <input type="radio" name="shalat_edit_${s.nis}" value="T" onchange="document.getElementById('edit_shalat_st_${s.nis}').value='T'" ${shalatVal==='T'?'checked':''} style="width:20px;height:20px;accent-color:#c62828;">
+                  <span style="font-size:12px;color:#c62828;font-weight:bold;">T</span>
+                </label>
+                <label style="display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;">
+                  <input type="radio" name="shalat_edit_${s.nis}" value="H" onchange="document.getElementById('edit_shalat_st_${s.nis}').value='H'" ${shalatVal==='H'?'checked':''} style="width:20px;height:20px;accent-color:#ff9800;">
+                  <span style="font-size:12px;color:#ff9800;font-weight:bold;">H</span>
+                </label>
+              </div>
+              <input type="hidden" id="edit_shalat_st_${s.nis}" value="${shalatVal}">
             </td>
-            <td style="display:${showShalat}">
-              <select id="edit_shalat_jml_${s.nis}">
+            <td style="display:${showShalat}; vertical-align:middle; text-align:center;">
+              <select id="edit_shalat_jml_${s.nis}" style="padding:4px 6px;font-size:14px;font-weight:bold;border-radius:6px;border:2px solid #b39ddb;width:55px;text-align:center;">
                 ${jmlOptions}
               </select>
             </td>
@@ -3050,14 +3080,8 @@
         }));
 
         try {
-          const { error: delErr } = await supaClient.from('absensi')
-            .delete()
-            .eq('kelas', kelas).eq('tanggal', tanggal)
-            .eq('jam', jam).eq('username_guru', App.user.username);
-          if (delErr) throw delErr;
-
-          const { error: insErr } = await supaClient.from('absensi').insert(absensiData);
-          if (insErr) throw insErr;
+          const { error: absenErr } = await supaClient.from('absensi').upsert(absensiData, { onConflict: 'nis,tanggal,mapel,jam' });
+          if (absenErr) throw absenErr;
 
           
           
