@@ -1312,3 +1312,173 @@ async function downloadLaporanSikap() {
     showError('Gagal membuat laporan sikap: ' + err.message);
   }
 }
+
+// ============================================================
+// ============ LAPORAN WALI (SUPABASE) =======================
+// ============================================================
+async function downloadLaporanWali() {
+  const bulan = document.getElementById('lapWaliBulan')?.value;
+  const tahun = document.getElementById('lapWaliTahun')?.value;
+  const nis = document.getElementById('lapWaliSiswa')?.value || 'semua';
+  
+  if (!bulan || !tahun) return;
+  
+  const btn = document.getElementById('btnDownloadWali');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '⏳ MENYIAPKAN...';
+  } else {
+    showLoading(true, 'Sedang menyiapkan laporan wali...');
+  }
+  
+  try {
+    const usernameGuru = App.user.username;
+    const namaGuru = App.guruData?.nama || usernameGuru;
+    const nipGuru = App.guruData?.nip || '-';
+    
+    let query = supaClient.from('pembinaan_wali')
+      .select('*')
+      .eq('username_guru', usernameGuru);
+      
+    if (nis !== 'semua') {
+      query = query.eq('nis', nis);
+    }
+    
+    const { data: dataWali, error } = await query;
+    if (error) throw error;
+    
+    let filteredData = (dataWali || []).filter(item => {
+      if (!item.tanggal) return false;
+      const [year, month, day] = item.tanggal.split('-');
+      if (parseInt(year) !== parseInt(tahun)) return false;
+      if (bulan !== 'semua' && parseInt(month) !== parseInt(bulan)) return false;
+      return true;
+    });
+    
+    filteredData.sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal));
+    
+    const BULAN_NAMA = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const today = new Date();
+    const todayStr = `${today.getDate()} ${BULAN_NAMA[today.getMonth() + 1]} ${today.getFullYear()}`;
+    
+    const cssBase = `
+      @page { size: A4 landscape; margin: 1.5cm; }
+      @media print { 
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } 
+        .page-break { page-break-after: always; } 
+      }
+      body { font-family: Arial, sans-serif; font-size: 11px; margin: 0; padding: 0; }
+      h2 { text-align:center; color:#2e7d32; margin:10px 0; font-size:16px; text-transform:uppercase; }
+      .info { margin:15px 0; width:100%; }
+      .info table { width:100%; border-collapse: collapse; }
+      .info td { border: none; padding: 3px 5px; }
+      .info td.label { width: 100px; font-weight: bold; }
+      .info td.separator { width: 15px; text-align: center; }
+      table.data { width:100%; border-collapse: collapse; margin:20px 0; }
+      table.data th { background: #2e7d32 !important; color: white !important; padding: 8px; text-align: center; font-weight: bold; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      table.data td { border: 1px solid #a5d6a7; padding: 6px; vertical-align: top; }
+      .ttd { margin-top: 50px; text-align: right; }
+      .ttd div { margin-top: 60px; }
+      .page-break { page-break-after: always; }
+    `;
+    
+    let html = `<html><head><style>${cssBase}</style></head><body>`;
+    
+    const bulanNum = bulan === 'semua' ? 'semua' : parseInt(bulan);
+    const monthsToProcess = bulanNum === 'semua' ? [1,2,3,4,5,6,7,8,9,10,11,12] : [bulanNum];
+    
+    const validMonths = monthsToProcess.filter(m => {
+       return filteredData.some(j => parseInt(j.tanggal.split('-')[1]) === m);
+    });
+    
+    if (validMonths.length === 0) {
+       validMonths.push(bulanNum === 'semua' ? 1 : bulanNum); 
+    }
+    
+    validMonths.forEach((m, idx) => {
+      const monthData = filteredData.filter(j => parseInt(j.tanggal.split('-')[1]) === m);
+      const mNama = BULAN_NAMA[m];
+      
+      const pageBreakClass = (idx < validMonths.length - 1) ? 'class="page-break"' : '';
+      
+      html += `
+      <div ${pageBreakClass}>
+        ${KOP_SURAT_LAPORAN}
+        
+        <h2>LAPORAN PEMBINAAN GURU WALI</h2>
+        
+        <div class="info">
+          <table>
+            <tr><td class="label">Nama Guru Wali</td><td class="separator">:</td><td>${namaGuru}</td></tr>
+            <tr><td class="label">NIP</td><td class="separator">:</td><td>${nipGuru}</td></tr>
+            <tr><td class="label">Periode</td><td class="separator">:</td><td>${mNama} ${tahun}</td></tr>
+          </table>
+        </div>
+        
+        <table class="data">
+          <thead>
+            <tr>
+              <th width="30">No</th>
+              <th width="100">Hari/Tanggal</th>
+              <th>Kelas</th>
+              <th>Nama Siswa</th>
+              <th>Topik Pembinaan</th>
+              <th>Permasalahan</th>
+              <th>Isi Pembinaan</th>
+              <th>Tindak Lanjut</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      
+      if (monthData.length === 0) {
+        html += `<tr><td colspan="8" style="text-align:center; padding:20px;">Belum ada riwayat pembinaan</td></tr>`;
+      } else {
+        let no = 1;
+        monthData.forEach(j => {
+          const tglFormat = j.tanggal.split('-').reverse().join('/'); // YYYY-MM-DD -> DD/MM/YYYY
+          html += `
+            <tr>
+              <td style="text-align:center;">${no++}</td>
+              <td style="text-align:center;">${tglFormat}</td>
+              <td style="text-align:center;">${j.kelas}</td>
+              <td>${j.nama}</td>
+              <td>${j.topik}</td>
+              <td>${j.masalah}</td>
+              <td>${j.isi}</td>
+              <td>${j.tindak_lanjut || '-'}</td>
+            </tr>
+          `;
+        });
+      }
+      
+      html += `
+          </tbody>
+        </table>
+        
+        <div class="ttd">
+          <p>Pasaman, ${todayStr}</p>
+          <p>Guru Wali</p>
+          <div>
+            <p>${namaGuru}</p>
+            <p>NIP. ${nipGuru}</p>
+          </div>
+        </div>
+      </div>
+      `;
+    });
+    
+    html += `</body></html>`;
+    
+    if (btn) { btn.disabled = false; btn.innerHTML = '📥 DOWNLOAD PDF'; }
+    else { showLoading(false); }
+    
+    openReportAndPrint(html);
+    
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '📥 DOWNLOAD PDF'; }
+    else { showLoading(false); }
+    showError('Gagal membuat laporan wali: ' + err.message);
+  }
+}
+
