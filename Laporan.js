@@ -1201,7 +1201,27 @@ async function downloadLaporanSikap() {
         </tr>`;
       });
 
-      html += `</tbody></table>`;
+      const totalPositif = semua.filter(r => r.tipe === 'POSITIF').reduce((s, r) => s + (r.poin || 0), 0);
+      const totalNegatif = semua.filter(r => r.tipe === 'NEGATIF').reduce((s, r) => s + (r.poin || 0), 0);
+      const netTotal = totalPositif - totalNegatif;
+      
+      let netColor = '';
+      let netDisplay = netTotal;
+      if (netTotal > 0) {
+        netColor = 'color:#2e7d32;';
+        netDisplay = '+' + netTotal;
+      } else if (netTotal < 0) {
+        netColor = 'color:#b71c1c;';
+      }
+
+      html += `
+          <tr style="background-color: #f5f5f5;">
+            <td colspan="7" style="text-align:right; font-weight:bold;">TOTAL KESELURUHAN POIN :</td>
+            <td style="text-align:center; font-weight:bold; ${netColor}">${netDisplay}</td>
+            <td colspan="2"></td>
+          </tr>
+        </tbody>
+      </table>`;
       html += ttdHtml;
 
     } else {
@@ -1229,9 +1249,7 @@ async function downloadLaporanSikap() {
         html += `
           <h3>Laporan Sikap — ${siswa.nama} (${siswa.nis})</h3>
           <div style="margin-bottom:10px; font-size:11px;">
-            Kelas: <b>${kelas}</b> &nbsp;|&nbsp; Tahun: <b>${tahun}</b> &nbsp;|&nbsp;
-            Poin Positif: <b style="color:#2e7d32;">+${totalPoinPositif}</b> &nbsp;|&nbsp;
-            Poin Negatif: <b style="color:#b71c1c;">${totalPoinNegatif}</b>
+            Kelas: <b>${kelas}</b> &nbsp;|&nbsp; Tahun: <b>${tahun}</b>
           </div>
           <table>
             <thead>
@@ -1262,7 +1280,24 @@ async function downloadLaporanSikap() {
           </tr>`;
         });
 
-        html += `</tbody></table>`;
+        const netTotalSiswa = totalPoinPositif - totalPoinNegatif;
+        let netColorSiswa = '';
+        let netDisplaySiswa = netTotalSiswa;
+        if (netTotalSiswa > 0) {
+          netColorSiswa = 'color:#2e7d32;';
+          netDisplaySiswa = '+' + netTotalSiswa;
+        } else if (netTotalSiswa < 0) {
+          netColorSiswa = 'color:#b71c1c;';
+        }
+
+        html += `
+          <tr style="background-color: #f5f5f5;">
+            <td colspan="5" style="text-align:right; font-weight:bold;">TOTAL KESELURUHAN POIN :</td>
+            <td style="text-align:center; font-weight:bold; ${netColorSiswa}">${netDisplaySiswa}</td>
+            <td colspan="2"></td>
+          </tr>
+        </tbody>
+      </table>`;
         html += ttdHtml;
       });
     }
