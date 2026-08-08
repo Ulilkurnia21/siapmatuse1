@@ -3562,7 +3562,7 @@
         </select>
       </div>
       <div class="form-group">
-        <label>Nama Siswa</label>
+        <label>Nama Anak Asuh</label>
         <select id="lapWaliSiswa">
           <option value="semua">⏳ Memuat daftar siswa...</option>
         </select>
@@ -6377,48 +6377,36 @@
     // ============================================================
 
     // Muat daftar siswa binaan guru wali ke dropdown filter
-    function loadSiswaWali() {
+    async function loadSiswaWali() {
       const sel = document.getElementById('lapWaliSiswa');
       if (!sel) return;
-
-      const email = App.user.profil.email;
-      const cacheKey = 'siswa_wali_' + email;
-      const cached = AppCache.get(cacheKey);
-
-      if (cached && cached.success && cached.siswa) {
-        // Render dari AppCache secara instan
-        renderSiswaWaliDom(sel, cached);
-        return;
-      }
 
       sel.innerHTML = '<option value="semua">⏳ Memuat...</option>';
       sel.disabled = true;
 
-      google.script.run
-        .withSuccessHandler(function (r) {
-          if (r.success) {
-            AppCache.set(cacheKey, r, 60); // Cache di browser selama 60 menit
-          }
-          renderSiswaWaliDom(sel, r);
-        })
-        .withFailureHandler(function () {
-          sel.disabled = false;
-          sel.innerHTML = '<option value="semua">👥 Semua Siswa</option>';
-        })
-        .getSiswaListByWali(email);
-    }
+      try {
+        const { data, error } = await supaClient
+          .from('data_siswa')
+          .select('nis, nama, kelas')
+          .eq('email_guru_wali', App.user.username)
+          .order('nama', { ascending: true });
 
-    // Helper untuk merender dropdown siswa wali
-    function renderSiswaWaliDom(sel, r) {
-      sel.disabled = false;
-      if (r.success && r.siswa.length > 0) {
-        let opts = '<option value="semua">👥 Semua Siswa</option>';
-        r.siswa.forEach(s => {
-          opts += `<option value="${s.nis}">${s.nama} (${s.kelas})</option>`;
-        });
-        sel.innerHTML = opts;
-      } else {
-        sel.innerHTML = '<option value="semua">👥 Semua Siswa</option>';
+        if (error) throw error;
+        
+        sel.disabled = false;
+        if (data && data.length > 0) {
+          let opts = '<option value="semua">👥 Semua Anak Asuh</option>';
+          data.forEach(s => {
+            opts += `<option value="${s.nis}">${s.nama} (${s.kelas})</option>`;
+          });
+          sel.innerHTML = opts;
+        } else {
+          sel.innerHTML = '<option value="semua">👥 Semua Anak Asuh</option>';
+        }
+      } catch (err) {
+        console.error('Error loadSiswaWali:', err);
+        sel.disabled = false;
+        sel.innerHTML = '<option value="semua">👥 Semua Anak Asuh</option>';
       }
     }
 
