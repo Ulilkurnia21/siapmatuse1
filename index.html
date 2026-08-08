@@ -6422,65 +6422,6 @@
       }
     }
 
-    function downloadLaporanWali() {
-      const bulan  = document.getElementById('lapWaliBulan')?.value;
-      const tahun  = document.getElementById('lapWaliTahun')?.value;
-      const nis    = document.getElementById('lapWaliSiswa')?.value || 'semua';
-
-      if (!bulan || !tahun) return;
-
-      const btn = document.getElementById('btnDownloadWali');
-      if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '⏳ MENYIAPKAN...';
-      } else {
-        showLoading(true, 'Sedang menyiapkan laporan wali...');
-      }
-
-      const timeoutId = setTimeout(() => {
-        if (btn) { btn.disabled = false; btn.innerHTML = '📥 DOWNLOAD PDF'; }
-        else { showLoading(false); }
-        showError('Permintaan waktu habis (Timeout). Data mungkin terlalu besar atau koneksi lambat.');
-      }, 180000);
-
-      google.script.run
-        .withSuccessHandler(function (r) {
-          clearTimeout(timeoutId);
-          if (btn) { btn.disabled = false; btn.innerHTML = '📥 DOWNLOAD PDF'; }
-          else { showLoading(false); }
-
-          if (!r.success) {
-            showError(r.error || 'Gagal membuat laporan');
-            return;
-          }
-
-          // Gunakan Blob URL agar tidak bergantung pada window.open + document.write
-          // yang rentan terhadap popup blocker dan error koneksi GAS
-          try {
-            const blob = new Blob([r.html], { type: 'text/html; charset=utf-8' });
-            const url  = URL.createObjectURL(blob);
-            const win  = window.open(url, '_blank');
-            if (!win) {
-              showError('Pop-up diblokir oleh browser. Mohon izinkan pop-up untuk situs ini.');
-              URL.revokeObjectURL(url);
-              return;
-            }
-            // Bersihkan Blob URL setelah 60 detik
-            setTimeout(() => URL.revokeObjectURL(url), 60000);
-          } catch (blobErr) {
-            // Fallback ke metode lama jika Blob tidak didukung
-            openReportAndPrint(r.html);
-          }
-        })
-        .withFailureHandler(function (e) {
-          clearTimeout(timeoutId);
-          if (btn) { btn.disabled = false; btn.innerHTML = '📥 DOWNLOAD PDF'; }
-          else { showLoading(false); }
-          showError('Gagal membuat laporan wali. Silakan coba lagi.');
-          console.error('[Laporan Wali] Error:', e);
-        })
-        .downloadLaporanWaliPdf(bulan, tahun, App.user.profil.email, nis);
-    }
 
     // ============================================================
     // ============ FUNGSI MODUL ORANG TUA (ORTU ONLY) ============
@@ -7227,6 +7168,8 @@
     // ============================================================
     let dataAnakAsuh = [];
     let riwayatPembinaan = [];
+    let currentPageWali = 1;
+    const ITEMS_PER_PAGE_WALI = 15;
 
     function switchWaliTab(tabId) {
       document.querySelectorAll('.wali-tab-content').forEach(el => el.style.display = 'none');
@@ -7248,6 +7191,9 @@
       }
 
       if (tabId === 'tabInputPembinaan') {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('pembinaanTanggal').value = today;
+        currentPageWali = 1;
         loadSiswaBimbinganDropdown();
         loadRiwayatPembinaan();
       } else if (tabId === 'tabDataAnakAsuh') {
@@ -7385,25 +7331,54 @@
         return;
       }
 
+      const totalItems = riwayatPembinaan.length;
+      const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE_WALI);
+      if (currentPageWali < 1) currentPageWali = 1;
+      if (currentPageWali > totalPages) currentPageWali = totalPages;
+
+      const startIndex = (currentPageWali - 1) * ITEMS_PER_PAGE_WALI;
+      const paginatedData = riwayatPembinaan.slice(startIndex, startIndex + ITEMS_PER_PAGE_WALI);
+
       let html = '';
-      riwayatPembinaan.forEach((row, idx) => {
+      paginatedData.forEach((row, idx) => {
+        const actualIdx = startIndex + idx + 1;
         html += `
           <tr>
-            <td style="text-align:center;">${idx + 1}</td>
+            <td style="text-align:center;">${actualIdx}</td>
             <td style="text-align:center;">${row.tanggal}</td>
             <td><b>${row.nama}</b><br><small class="text-muted">NIS: ${row.nis} | Kls: ${row.kelas}</small></td>
             <td>${row.topik}</td>
             <td>${row.masalah}</td>
             <td>${row.isi}</td>
             <td>${row.tindak_lanjut || '-'}</td>
-            <td style="text-align:center;">
-              <button class="btn-icon" style="color:#1976d2; margin-bottom:5px;" onclick="editPembinaan(${row.id})" title="Edit">✏️</button>
-              <button class="btn-icon" style="color:#d32f2f;" onclick="hapusPembinaan(${row.id})" title="Hapus">🗑️</button>
+            <td style="text-align:center; min-width: 80px;">
+              <button class="btn btn-warning" style="padding:4px 8px; font-size:12px; margin-bottom:5px; border-radius:4px; border:none; cursor:pointer; width:100%;" onclick="editPembinaan(${row.id})" title="Edit">✏️ Edit</button>
+              <button class="btn btn-danger" style="padding:4px 8px; font-size:12px; border-radius:4px; border:none; cursor:pointer; background:#d32f2f; color:white; width:100%;" onclick="hapusPembinaan(${row.id})" title="Hapus">🗑️ Hapus</button>
             </td>
           </tr>
         `;
       });
+
+      if (totalPages > 1) {
+        html += `
+          <tr>
+            <td colspan="8" style="text-align:center; padding:15px;">
+              <div style="display:flex; justify-content:center; align-items:center; gap:15px;">
+                <button class="btn btn-primary" style="padding:6px 12px; border-radius:4px; border:none; cursor:pointer;" onclick="changePageWali(-1)" ${currentPageWali === 1 ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>⬅️ Prev</button>
+                <span style="font-weight:bold; font-size:14px;">Halaman ${currentPageWali} dari ${totalPages}</span>
+                <button class="btn btn-primary" style="padding:6px 12px; border-radius:4px; border:none; cursor:pointer;" onclick="changePageWali(1)" ${currentPageWali === totalPages ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>Next ➡️</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }
+
       tbody.innerHTML = html;
+    }
+
+    function changePageWali(delta) {
+      currentPageWali += delta;
+      renderTabelRiwayatPembinaan();
     }
 
     let currentEditPembinaanId = null;
@@ -7630,24 +7605,6 @@
         html += `
           <div style="display:flex; gap:20px; flex-wrap:wrap; margin-bottom:15px;">
             <div class="form-section" style="flex:1; min-width:300px; margin-bottom:0;">
-              <h3>🕌 Rekap Ibadah Shalat</h3>
-              <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                <div style="background:#e8f5e9; padding:10px; border-radius:8px; border-left:4px solid #2e7d32; flex:1;">
-                  <div style="font-size:11px; color:#555;">Hadir (Y)</div>
-                  <div style="font-size:18px; font-weight:bold; color:#2e7d32;">${shalatY}</div>
-                </div>
-                <div style="background:#ffebee; padding:10px; border-radius:8px; border-left:4px solid #b71c1c; flex:1;">
-                  <div style="font-size:11px; color:#555;">Tidak (T)</div>
-                  <div style="font-size:18px; font-weight:bold; color:#b71c1c;">${shalatT}</div>
-                </div>
-                <div style="background:#fff3e0; padding:10px; border-radius:8px; border-left:4px solid #f57c00; flex:1;">
-                  <div style="font-size:11px; color:#555;">Halangan (H)</div>
-                  <div style="font-size:18px; font-weight:bold; color:#f57c00;">${shalatH}</div>
-                </div>
-              </div>
-            </div>
-            
-            <div class="form-section" style="flex:1; min-width:300px; margin-bottom:0;">
               <h3>📅 Rekap Absensi</h3>
               <div style="display:flex; gap:10px; flex-wrap:wrap;">
                 <div style="background:#fff8e1; padding:10px; border-radius:8px; border-left:4px solid #fbc02d; flex:1;">
@@ -7661,6 +7618,24 @@
                 <div style="background:#ffebee; padding:10px; border-radius:8px; border-left:4px solid #b71c1c; flex:1;">
                   <div style="font-size:11px; color:#555;">Alpa (A)</div>
                   <div style="font-size:18px; font-weight:bold; color:#b71c1c;">${absA}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section" style="flex:1; min-width:300px; margin-bottom:0;">
+              <h3>🕌 Rekap Ibadah Shalat</h3>
+              <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <div style="background:#e8f5e9; padding:10px; border-radius:8px; border-left:4px solid #2e7d32; flex:1;">
+                  <div style="font-size:11px; color:#555;">Hadir (Y)</div>
+                  <div style="font-size:18px; font-weight:bold; color:#2e7d32;">${shalatY}</div>
+                </div>
+                <div style="background:#ffebee; padding:10px; border-radius:8px; border-left:4px solid #b71c1c; flex:1;">
+                  <div style="font-size:11px; color:#555;">Tidak (T)</div>
+                  <div style="font-size:18px; font-weight:bold; color:#b71c1c;">${shalatT}</div>
+                </div>
+                <div style="background:#fff3e0; padding:10px; border-radius:8px; border-left:4px solid #f57c00; flex:1;">
+                  <div style="font-size:11px; color:#555;">Halangan (H)</div>
+                  <div style="font-size:18px; font-weight:bold; color:#f57c00;">${shalatH}</div>
                 </div>
               </div>
             </div>
@@ -7691,6 +7666,44 @@
 
         sikapList.sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
 
+        html += `
+          <div class="form-section">
+            <h3>📝 Riwayat Sikap (Positif & Negatif)</h3>
+            <div style="overflow-x:auto;">
+              <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left; min-width:500px;">
+                <thead>
+                  <tr style="background:#e8f5e9; color:#1b5e20;">
+                    <th style="padding:10px; border-bottom:2px solid #a5d6a7;">Tanggal</th>
+                    <th style="padding:10px; border-bottom:2px solid #a5d6a7;">Tipe</th>
+                    <th style="padding:10px; border-bottom:2px solid #a5d6a7;">Kategori / Jenis</th>
+                    <th style="padding:10px; border-bottom:2px solid #a5d6a7;">Detail / Perilaku</th>
+                    <th style="padding:10px; border-bottom:2px solid #a5d6a7; text-align:center;">Poin</th>
+                    <th style="padding:10px; border-bottom:2px solid #a5d6a7;">Guru</th>
+                  </tr>
+                </thead>
+                <tbody>
+        `;
+
+        if (sikapList.length === 0) {
+          html += '<tr><td colspan="6" style="text-align:center; padding:15px;">Belum ada riwayat sikap</td></tr>';
+        } else {
+          sikapList.forEach(s => {
+            const poinColor = s.tipe === 'POSITIF' ? '#2e7d32' : '#b71c1c';
+            const poinSign = s.tipe === 'POSITIF' ? '+' : '';
+            html += `
+              <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:10px;">${s.tanggal}</td>
+                <td style="padding:10px;"><span class="${s.tipeClass}" style="font-size:11px; padding:2px 6px;">${s.tipe}</span></td>
+                <td style="padding:10px;">${s.kategori}</td>
+                <td style="padding:10px;">${s.detail}<br><small class="text-muted">${s.keterangan || ''}</small></td>
+                <td style="padding:10px; text-align:center; font-weight:bold; color:${poinColor};">${poinSign}${s.poin || 0}</td>
+                <td style="padding:10px; font-size:12px;">${s.guru}</td>
+              </tr>
+            `;
+          });
+        }
+        html += `</tbody></table></div></div>`;
+
         const nilaiData = resNilai.data || [];
         html += `
           <div class="form-section">
@@ -7720,44 +7733,6 @@
                 <td style="padding:10px;">${n.nopenilaian || '-'}</td>
                 <td style="padding:10px;">${n.tanggal || '-'}</td>
                 <td style="padding:10px; text-align:center; font-weight:bold; color:${(n.nilai && n.nilai >= 75) ? '#2e7d32' : (n.nilai !== null && n.nilai !== undefined && n.nilai !== '' ? '#b71c1c' : '#000')};">${n.nilai !== null && n.nilai !== undefined && n.nilai !== '' ? n.nilai : '-'}</td>
-              </tr>
-            `;
-          });
-        }
-        html += `</tbody></table></div></div>`;
-
-        html += `
-          <div class="form-section">
-            <h3>📝 Riwayat Sikap (Positif & Negatif)</h3>
-            <div style="overflow-x:auto;">
-              <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
-                <thead>
-                  <tr style="background:#e8f5e9; color:#1b5e20;">
-                    <th style="padding:10px; border-bottom:2px solid #a5d6a7;">Tanggal</th>
-                    <th style="padding:10px; border-bottom:2px solid #a5d6a7;">Tipe</th>
-                    <th style="padding:10px; border-bottom:2px solid #a5d6a7;">Kategori / Jenis</th>
-                    <th style="padding:10px; border-bottom:2px solid #a5d6a7;">Detail / Perilaku</th>
-                    <th style="padding:10px; border-bottom:2px solid #a5d6a7; text-align:center;">Poin</th>
-                    <th style="padding:10px; border-bottom:2px solid #a5d6a7;">Guru</th>
-                  </tr>
-                </thead>
-                <tbody>
-        `;
-
-        if (sikapList.length === 0) {
-          html += '<tr><td colspan="6" style="text-align:center; padding:15px;">Belum ada riwayat sikap</td></tr>';
-        } else {
-          sikapList.forEach(s => {
-            const poinColor = s.tipe === 'POSITIF' ? '#2e7d32' : '#b71c1c';
-            const poinSign = s.tipe === 'POSITIF' ? '+' : '';
-            html += `
-              <tr style="border-bottom:1px solid #eee;">
-                <td style="padding:10px;">${s.tanggal}</td>
-                <td style="padding:10px;"><span class="${s.tipeClass}" style="font-size:11px; padding:2px 6px;">${s.tipe}</span></td>
-                <td style="padding:10px;">${s.kategori}</td>
-                <td style="padding:10px;">${s.detail}<br><small class="text-muted">${s.keterangan || ''}</small></td>
-                <td style="padding:10px; text-align:center; font-weight:bold; color:${poinColor};">${poinSign}${s.poin || 0}</td>
-                <td style="padding:10px; font-size:12px;">${s.guru}</td>
               </tr>
             `;
           });
