@@ -2817,7 +2817,7 @@
           dataShalat.push({
             nis, nama, kelas,
             tanggal: tanggal,
-            status: shalatSt || null,
+            status: shalatSt || '-',
             jumlah: shalatJml,
             username_guru: App.user.username
           });
@@ -2837,14 +2837,18 @@
           if (absenErr) throw absenErr;
 
           
-          // Selalu bersihkan data shalat lama untuk kelas dan tanggal ini agar tidak duplikat
-          const { error: delShErr } = await supaClient.from('shalat').delete().eq('kelas', kelas).eq('tanggal', tanggal);
-          if (delShErr) throw delShErr;
+          
+          // HANYA proses hapus/simpan shalat jika Jam 1 atau 7
+          if (jam === '1' || jam === '7') {
+            const { error: delShErr } = await supaClient.from('shalat').delete().eq('kelas', kelas).eq('tanggal', tanggal);
+            if (delShErr) throw delShErr;
 
-          if (dataShalat.length > 0) {
-            const { error: shErr } = await supaClient.from('shalat').insert(dataShalat);
-            if (shErr) throw new Error('Gagal simpan shalat: ' + shErr.message);
+            if (dataShalat.length > 0) {
+              const { error: shErr } = await supaClient.from('shalat').insert(dataShalat);
+              if (shErr) throw new Error('Gagal simpan shalat: ' + shErr.message);
+            }
           }
+  
   
 
           toggleButtonLoading('button[onclick="simpanAbsensi()"]', false);
@@ -3025,7 +3029,7 @@
           dataShalat.push({
             nis, nama, kelas,
             tanggal: tanggal,
-            status: shalatSt || null,
+            status: shalatSt || '-',
             jumlah: shalatJml,
             username_guru: App.user.username
           });
@@ -3056,14 +3060,18 @@
           if (insErr) throw insErr;
 
           
-          // Selalu bersihkan data shalat lama
-          const { error: delShErr2 } = await supaClient.from('shalat').delete().eq('kelas', kelas).eq('tanggal', tanggal);
-          if (delShErr2) throw delShErr2;
+          
+          // HANYA proses hapus/update shalat jika Jam 1 atau 7
+          if (jam === '1' || jam === '7') {
+            const { error: delShErr2 } = await supaClient.from('shalat').delete().eq('kelas', kelas).eq('tanggal', tanggal);
+            if (delShErr2) throw delShErr2;
 
-          if (dataShalat.length > 0) {
-            const { error: shErr } = await supaClient.from('shalat').insert(dataShalat);
-            if (shErr) throw new Error('Gagal update shalat: ' + shErr.message);
+            if (dataShalat.length > 0) {
+              const { error: shErr } = await supaClient.from('shalat').insert(dataShalat);
+              if (shErr) throw new Error('Gagal update shalat: ' + shErr.message);
+            }
           }
+  
   
 
           toggleButtonLoading('button[onclick="updateAbsensi()"]', false);
