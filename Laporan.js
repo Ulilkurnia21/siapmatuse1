@@ -1080,15 +1080,24 @@ async function downloadLaporanSikap() {
     const tglStart = `${tahun}-01-01`;
     const tglEnd = `${tahun}-12-31`;
 
-    // Tarik catatan, pelanggaran, dan master_dimensi secara bersamaan
-    const [resCatatan, resPelanggaran, resDimensi] = await Promise.all([
+    // Tarik catatan, pelanggaran, master_dimensi, dan guru secara bersamaan
+    const [resCatatan, resPelanggaran, resDimensi, resGuru] = await Promise.all([
       supaClient.from('catatan').select('*').eq('kelas', kelas).gte('tanggal', tglStart).lte('tanggal', tglEnd).order('tanggal', { ascending: true }),
       supaClient.from('pelanggaran').select('*').eq('kelas', kelas).gte('tanggal', tglStart).lte('tanggal', tglEnd).order('tanggal', { ascending: true }),
-      supaClient.from('master_dimensi').select('*')
+      supaClient.from('master_dimensi').select('*'),
+      supaClient.from('data_guru').select('nama, nip').eq('wali_kelas', kelas).limit(1)
     ]);
 
     if (resCatatan.error) throw resCatatan.error;
     if (resPelanggaran.error) throw resPelanggaran.error;
+
+    // Data Wali Kelas
+    let namaWali = '(Kosong / Tidak Ditemukan)';
+    let nipWali = '-';
+    if (resGuru.data && resGuru.data.length > 0) {
+      namaWali = resGuru.data[0].nama;
+      nipWali = resGuru.data[0].nip || '-';
+    }
 
     // Buat map dimensi untuk lookup cepat
     const dimensiMap = {};
@@ -1142,6 +1151,18 @@ async function downloadLaporanSikap() {
 
     let html = `<html><head><style>${cssBase}</style></head><body>`;
 
+    const now = new Date();
+    const bulanNama = BULAN_NAMA[now.getMonth() + 1];
+    const ttdHtml = `
+      <div class="ttd">
+        Silayang, ${now.getDate()} ${bulanNama} ${now.getFullYear()}<br>
+        Wali Kelas<br>
+        <div></div>
+        <b><u>${namaWali}</u></b><br>
+        NIP. ${nipWali}
+      </div>
+    `;
+
     if (jenis === 'tanggal') {
       // ============ FORMAT PER TANGGAL ============
       html += KOP_SURAT_LAPORAN;
@@ -1181,6 +1202,7 @@ async function downloadLaporanSikap() {
       });
 
       html += `</tbody></table>`;
+      html += ttdHtml;
 
     } else {
       // ============ FORMAT PER SISWA ============
@@ -1241,20 +1263,11 @@ async function downloadLaporanSikap() {
         });
 
         html += `</tbody></table>`;
+        html += ttdHtml;
       });
     }
 
-    // Tanda tangan
-    const now = new Date();
-    const bulanNama = BULAN_NAMA[now.getMonth() + 1];
-    html += `
-      <div class="ttd">
-        Silayang, ${now.getDate()} ${bulanNama} ${now.getFullYear()}<br>
-        Wali Kelas<br>
-        <div></div>
-        <b>&nbsp;</b>
-      </div>
-    </body></html>`;
+    html += `</body></html>`;
 
     if (btn) { btn.disabled = false; btn.innerHTML = '📥 DOWNLOAD PDF'; }
     openReportAndPrint(html);
