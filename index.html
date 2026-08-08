@@ -1346,7 +1346,100 @@
         <div id="jurnal" class="menu-content" style="display:none;"></div>
         <div id="nilai" class="menu-content" style="display:none;"></div>
         <div id="orang_tua" class="menu-content" style="display:none;"></div>
-        <div id="wali" class="menu-content" style="display:none;"></div>
+        <div id="wali" class="menu-content" style="display:none;">
+          <h2 style="color: #1b5e20; border-bottom: 2px solid #e8f5e9; padding-bottom: 10px; margin-bottom: 20px;">👥 Menu Wali (Penasehat Akademik)</h2>
+          
+          <!-- TAB NAVIGATION -->
+          <div style="display:flex; width:100%; margin-bottom:20px; border-radius:10px; overflow:hidden; border:1px solid #c8e6c9;">
+            <button class="wali-tab-btn active" onclick="switchWaliTab('tabInputPembinaan')" style="flex:1; padding:15px; border:none; background:#2e7d32; color:white; font-weight:bold; cursor:pointer; font-size:15px; border-right:1px solid #c8e6c9;">📝 Input Pembinaan</button>
+            <button class="wali-tab-btn" onclick="switchWaliTab('tabDataAnakAsuh')" style="flex:1; padding:15px; border:none; background:#e8f5e9; color:#1b5e20; font-weight:bold; cursor:pointer; font-size:15px;">📊 Data Anak Asuh</button>
+          </div>
+
+          <!-- TAB 1: INPUT PEMBINAAN -->
+          <div id="tabInputPembinaan" class="wali-tab-content">
+            <div class="form-section">
+              <h3>+ Tambah Catatan Pembinaan / Konseling</h3>
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:15px;">
+                <div class="form-group">
+                  <label>Tanggal</label>
+                  <input type="date" id="pembinaanTanggal" class="form-control" required>
+                </div>
+                <div class="form-group">
+                  <label>Pilih Anak Asuh</label>
+                  <select id="pembinaanSiswaTarget" class="form-control" required>
+                    <option value="">⏳ Memuat data...</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom:15px;">
+                <label>Topik Pembinaan</label>
+                <input type="text" id="pembinaanTopik" class="form-control" placeholder="Contoh: Motivasi Belajar, Indisipliner, dll" required>
+              </div>
+              <div class="form-group" style="margin-bottom:15px;">
+                <label>Permasalahan</label>
+                <textarea id="pembinaanMasalah" class="form-control" rows="2" placeholder="Uraikan permasalahan siswa..." required></textarea>
+              </div>
+              <div class="form-group" style="margin-bottom:15px;">
+                <label>Isi Pembinaan / Nasihat</label>
+                <textarea id="pembinaanIsi" class="form-control" rows="3" placeholder="Uraikan isi dari pembinaan yang diberikan..." required></textarea>
+              </div>
+              <div class="form-group" style="margin-bottom:20px;">
+                <label>Tindak Lanjut (Opsional)</label>
+                <textarea id="pembinaanTindakLanjut" class="form-control" rows="2" placeholder="Contoh: Pemanggilan orang tua, surat peringatan, dll"></textarea>
+              </div>
+              <button class="btn btn-success" style="width:100%; padding:14px; font-size:15px;" onclick="simpanPembinaanWali()">💾 SIMPAN PEMBINAAN</button>
+            </div>
+
+            <div class="form-section" style="margin-top:20px;">
+              <h3>📋 Riwayat Pembinaan</h3>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th style="width:50px;">No</th>
+                      <th style="width:100px;">Tanggal</th>
+                      <th>Siswa Target</th>
+                      <th>Topik</th>
+                      <th>Permasalahan</th>
+                      <th>Isi Pembinaan</th>
+                      <th>Tindak Lanjut</th>
+                      <th style="width:80px;">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="riwayatPembinaanTbody">
+                    <tr><td colspan="8" style="text-align:center;">Memuat data...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: DATA ANAK ASUH -->
+          <div id="tabDataAnakAsuh" class="wali-tab-content" style="display:none;">
+            <div class="form-section">
+              <h3>📊 Monitoring Anak Asuh</h3>
+              <p style="font-size:13px; color:#555; margin-bottom:15px;">Tabel ini menampilkan kalkulasi total poin kebaikan (+) dan pelanggaran (-) dari setiap anak asuh Anda.</p>
+              <div class="table-responsive">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th style="width:50px; text-align:center;">No</th>
+                      <th>Nama Siswa</th>
+                      <th style="width:80px; text-align:center;">NIS</th>
+                      <th style="width:80px; text-align:center;">Kelas</th>
+                      <th style="width:100px; text-align:center; color:#2e7d32;">Total Positif</th>
+                      <th style="width:100px; text-align:center; color:#b71c1c;">Total Negatif</th>
+                      <th style="width:120px; text-align:center;">Buku Saku</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dataAnakAsuhTbody">
+                    <tr><td colspan="7" style="text-align:center;">Memuat rekap data...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
         <div id="laporan" class="menu-content" style="display:none;"></div>
         <!-- MENU PIMPINAN -->
         <div id="pimpinan_beranda" class="menu-content" style="display:none;"></div>
@@ -1777,7 +1870,7 @@
       } else if (menuId === 'orang_tua') {
         renderOrangTua();
       } else if (menuId === 'wali') {
-        renderWali();
+        switchWaliTab('tabInputPembinaan');
       } else if (menuId === 'laporan') {
         renderLaporan();
       } else if (menuId === 'pimpinan_beranda') {
@@ -1797,457 +1890,7 @@
       }
     }
 
-    // ============================================================
-    // ============ FUNGSI WALI KELAS =============================
-    // ============================================================
-    function renderWali() {
-      const today = new Date().toISOString().split('T')[0];
 
-      const html = `
-        <div class="form-section">
-          <h3 style="color:#2e7d32;">🤝 CATATAN PEMBINAAN WALI | ${App.guruData?.nama || '-'}</h3>
-          <p style="color:#666; margin-bottom: 20px;">Menu khusus guru wali untuk mencatat pembinaan siswa secara massal maupun individu.</p>
-          
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Tanggal Pembinaan</label>
-              <input type="date" id="waliTanggal" class="form-control" value="${today}">
-            </div>
-            <div class="form-group">
-              <label>Target Pembinaan</label>
-              <div class="multiselect">
-                <div class="selectBox" onclick="toggleCheckboxesWali()">
-                  <span id="waliSelectText">-- Pilih Target Pembinaan --</span>
-                  <span>▼</span>
-                </div>
-                <div id="waliCheckboxes" class="checkboxes">
-                  <label style="background: #e8f5e9; border-bottom: 2px solid #2e7d32; font-weight:bold; color:#1b5e20;">
-                    <input type="checkbox" id="cb_semua" onchange="selectAllWali(this)">
-                    Seluruh Siswa Perwalian
-                  </label>
-                  <div id="waliSiswaList" style="padding: 15px; text-align: center; color: #666; font-size: 13px;">
-                    (Fitur akan dihubungkan ke backend untuk mengambil data siswa perwalian)
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="form-group" style="margin-top: 15px;">
-            <label>Topik Pembahasan</label>
-            <textarea id="waliTopik" class="form-control" rows="2" placeholder="Contoh: Akademik, Kedisiplinan, Kehadiran, dll"></textarea>
-          </div>
-          <div class="form-group" style="margin-top: 10px;">
-            <label>Permasalahan yang Ada</label>
-            <textarea id="waliMasalah" class="form-control" rows="2" placeholder="Contoh: Sering terlambat, penurunan nilai, dll"></textarea>
-          </div>
-          <div class="form-group" style="margin-top: 10px;">
-            <label>Isi Pembinaan / Nasihat</label>
-            <textarea id="waliIsi" class="form-control" rows="3" placeholder="Tuliskan detail pembinaan atau nasihat yang diberikan kepada siswa..."></textarea>
-          </div>
-          <div class="form-group" style="margin-top: 10px;">
-            <label>Rencana Tindak Lanjut</label>
-            <textarea id="waliTindakLanjut" class="form-control" rows="2" placeholder="Contoh: Pemantauan absen 1 minggu, pemanggilan orang tua, dll"></textarea>
-          </div>
-          
-          <div class="bottom-button" style="margin-top: 20px;">
-            <button class="btn btn-primary" onclick="simpanPembinaanWali()">💾 SIMPAN PEMBINAAN</button>
-          </div>
-        </div>
-        
-        <!-- TABEL RIWAYAT PEMBINAAN -->
-        <div class="form-section" style="margin-top: 20px;">
-          <h4 style="color:#2e7d32; border-bottom: 2px solid #2e7d32; padding-bottom: 10px;">📋 RIWAYAT PEMBINAAN WALI</h4>
-          
-          <div class="table-container" style="margin-top: 15px;">
-            <table>
-              <thead>
-                <tr>
-                  <th>No</th>
-                  <th>Tanggal</th>
-                  <th>Target Siswa</th>
-                  <th>Topik</th>
-                  <th>Permasalahan</th>
-                  <th>Isi Pembinaan</th>
-                  <th>Tindak Lanjut</th>
-                  <th>Aksi</th>
-                </tr>
-              </thead>
-              <tbody id="waliRiwayatTbody">
-                <tr><td colspan="8" style="text-align:center;">Memuat riwayat...</td></tr>
-              </tbody>
-            </table>
-          </div>
-          
-          <!-- Paginasi -->
-          <div id="waliPagination" style="margin-top: 20px; display: flex; justify-content: center; gap: 5px; flex-wrap: wrap;"></div>
-        </div>
-      `;
-
-      document.getElementById('wali').innerHTML = html;
-
-      document.getElementById('wali').innerHTML = html;
-
-      // Memuat data siswa anak wali secara otomatis
-      loadAnakWali();
-
-      // Load riwayat wali (dari backend)
-      loadRiwayatWali(1);
-    }
-
-    function loadAnakWali() {
-      const listContainer = document.getElementById('waliSiswaList');
-      listContainer.innerHTML = '<span style="color:#2e7d32; font-weight:bold;">Memuat data anak wali...</span>';
-
-      google.script.run
-        .withSuccessHandler(function (r) {
-          if (r.success && r.siswa && r.siswa.length > 0) {
-            let html = '';
-            r.siswa.forEach(s => {
-              html += `
-                <label style="display:block; margin-bottom:5px;">
-                  <input type="checkbox" class="wali-siswa-cb" data-nama="${s.nama}" data-kelas="${s.kelas}" value="${s.nis}" onchange="updateWaliSelectText()">
-                  ${s.nis} - ${s.nama} (${s.kelas})
-                </label>
-              `;
-            });
-            listContainer.style.padding = '10px';
-            listContainer.style.textAlign = 'left';
-            listContainer.innerHTML = html;
-          } else {
-            listContainer.innerHTML = '<span style="color:red; font-size:12px;">Anda belum memiliki data anak wali. Pastikan email Anda sudah diisi di kolom Email Guru Wali pada sheet DataSiswa.</span>';
-          }
-        })
-        .withFailureHandler(function (e) {
-          listContainer.innerHTML = '<span style="color:red;">Gagal memuat: ' + e + '</span>';
-            showError('Gagal: ' + e);
-        })
-        .getSiswaAnakWali(App.user.profil.username);
-    }
-
-    function toggleCheckboxesWali() {
-      const checkboxes = document.getElementById("waliCheckboxes");
-      if (checkboxes.style.display === "block") {
-        checkboxes.style.display = "none";
-      } else {
-        checkboxes.style.display = "block";
-      }
-    }
-
-    function selectAllWali(checkbox) {
-      const allCheckboxes = document.querySelectorAll('.wali-siswa-cb');
-      allCheckboxes.forEach(cb => cb.checked = checkbox.checked);
-      updateWaliSelectText();
-    }
-
-    function updateWaliSelectText() {
-      const allCheckboxes = document.querySelectorAll('.wali-siswa-cb');
-      const checked = document.querySelectorAll('.wali-siswa-cb:checked');
-      const selectBoxText = document.getElementById('waliSelectText');
-      const selectAllCb = document.getElementById('cb_semua');
-
-      if (!allCheckboxes || allCheckboxes.length === 0) return;
-
-      if (checked.length === 0) {
-        selectBoxText.innerText = '-- Pilih Target Pembinaan --';
-        if (selectAllCb) selectAllCb.checked = false;
-      } else if (checked.length === allCheckboxes.length) {
-        selectBoxText.innerText = 'Semua Siswa Terpilih';
-        if (selectAllCb) selectAllCb.checked = true;
-      } else {
-        selectBoxText.innerText = `${checked.length} Siswa Terpilih`;
-        if (selectAllCb) selectAllCb.checked = false;
-      }
-    }
-
-    // Close multiselect when clicked outside
-    document.addEventListener('click', function (e) {
-      const selectBox = document.querySelector('.selectBox');
-      const checkboxes = document.getElementById('waliCheckboxes');
-
-      if (checkboxes && checkboxes.style.display === 'block') {
-        if (!selectBox.contains(e.target) && !checkboxes.contains(e.target)) {
-          checkboxes.style.display = 'none';
-        }
-      }
-    });
-
-    function simpanPembinaanWali() {
-      const tanggal = document.getElementById('waliTanggal').value;
-      const topik = document.getElementById('waliTopik').value.trim();
-      const masalah = document.getElementById('waliMasalah').value.trim();
-      const isi = document.getElementById('waliIsi').value.trim();
-      const tindakLanjut = document.getElementById('waliTindakLanjut').value.trim();
-
-      const checkedTargets = Array.from(document.querySelectorAll('.wali-siswa-cb:checked'));
-
-      if (!tanggal) {
-        showError('Tanggal pembinaan harus diisi!');
-        return;
-      }
-
-      if (checkedTargets.length === 0) {
-        showError('Pilih minimal satu target pembinaan (siswa)!');
-        return;
-      }
-
-      if (!topik || !masalah || !isi || !tindakLanjut) {
-        showError('Semua kolom deskripsi (Topik, Permasalahan, Isi Pembinaan, dan Tindak Lanjut) wajib diisi penuh!');
-        return;
-      }
-
-      const targets = checkedTargets.map(cb => ({
-        nis: cb.value,
-        nama: cb.dataset.nama,
-        kelas: cb.dataset.kelas
-      }));
-
-      const data = {
-        tanggal: tanggal,
-        topik: topik,
-        masalah: masalah,
-        isi: isi,
-        tindakLanjut: tindakLanjut,
-        targets: targets,
-        diisiOleh: App.user.profil.email
-      };
-
-      toggleButtonLoading('button[onclick="simpanPembinaanWali()"]', true, '⏳ Menyimpan...');
-
-      google.script.run
-        .withSuccessHandler(function (r) {
-          toggleButtonLoading('button[onclick="simpanPembinaanWali()"]', false);
-          if (r.success) {
-            showSuccess('Data pembinaan berhasil disimpan!');
-            loadRiwayatWali(1);
-
-            // Reset form
-            document.getElementById('waliTopik').value = '';
-            document.getElementById('waliMasalah').value = '';
-            document.getElementById('waliIsi').value = '';
-            document.getElementById('waliTindakLanjut').value = '';
-
-            const allCheckboxes = document.querySelectorAll('.wali-siswa-cb');
-            allCheckboxes.forEach(cb => cb.checked = false);
-            updateWaliSelectText();
-          } else {
-            showError(r.error || 'Gagal menyimpan data');
-          }
-        })
-        .withFailureHandler(function (e) {
-          toggleButtonLoading('button[onclick="simpanPembinaanWali()"]', false);
-          showError('Gagal menyimpan: ' + e);
-        })
-        .simpanPembinaanWaliBackend(data);
-    }
-
-    // ============================================================
-    // ============ FUNGSI RIWAYAT WALI (SIMULASI) ================
-    // ============================================================
-
-    App.currentWaliPage = 1;
-    App.WALI_PER_PAGE = 10;
-
-    function loadRiwayatWali(page = 1) {
-      App.currentWaliPage = page;
-      const tbody = document.getElementById('waliRiwayatTbody');
-      if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Memuat riwayat dari server...</td></tr>';
-
-      google.script.run
-        .withSuccessHandler(function (r) {
-          if (r.success) {
-            renderRiwayatWali(r.data, r.total, page);
-          } else {
-            if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:red;">Gagal memuat riwayat</td></tr>';
-          }
-        })
-        .withFailureHandler(function (e) {
-          if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:red;">Error koneksi: ' + e + '</td></tr>';
-            showError('Gagal: ' + e);
-        })
-        .getRiwayatPembinaanWali(page, App.WALI_PER_PAGE, App.user.profil.email);
-    }
-
-    function renderRiwayatWali(pageData, totalData, currentPage) {
-      const tbody = document.getElementById('waliRiwayatTbody');
-      const pagination = document.getElementById('waliPagination');
-      if (!tbody) return;
-
-      const totalPages = Math.ceil(totalData / App.WALI_PER_PAGE);
-      const startIndex = (currentPage - 1) * App.WALI_PER_PAGE;
-
-      let html = '';
-      if (!pageData || pageData.length === 0) {
-        html = '<tr><td colspan="8" style="text-align:center;">Belum ada riwayat pembinaan</td></tr>';
-      } else {
-        pageData.forEach((d, i) => {
-          html += `
-            <tr>
-              <td>${startIndex + i + 1}</td>
-              <td>${d.tanggal}</td>
-              <td>${d.targetSiswa}</td>
-              <td>${d.topik}</td>
-              <td>${d.masalah}</td>
-              <td>${d.isi}</td>
-              <td>${d.tindakLanjut}</td>
-              <td>
-                <button class="btn btn-warning btn-sm" onclick="editWali('${d.id}')" style="padding:4px 8px; font-size:11px; margin:2px;">Edit</button>
-                <button class="btn btn-danger btn-sm" onclick="hapusWali('${d.id}')" style="padding:4px 8px; font-size:11px; margin:2px;">Hapus</button>
-              </td>
-            </tr>
-          `;
-        });
-      }
-      tbody.innerHTML = html;
-
-      let pagHtml = '';
-      if (totalPages > 1) {
-        const prevDisabled = currentPage === 1 ? 'disabled style="background:#ccc; color:#333; border:none; padding:5px 10px; font-size:12px;"' : 'style="padding:5px 10px; font-size:12px;"';
-        pagHtml += `<button class="btn btn-primary" onclick="loadRiwayatWali(${currentPage - 1})" ${prevDisabled}>« Seb</button>`;
-
-        for (let i = 1; i <= totalPages; i++) {
-          const activeClass = currentPage === i ? 'btn-success' : 'btn-primary';
-          pagHtml += `<button class="btn ${activeClass}" onclick="loadRiwayatWali(${i})" style="padding:5px 10px; font-size:12px;">${i}</button>`;
-        }
-
-        const nextDisabled = currentPage === totalPages ? 'disabled style="background:#ccc; color:#333; border:none; padding:5px 10px; font-size:12px;"' : 'style="padding:5px 10px; font-size:12px;"';
-        pagHtml += `<button class="btn btn-primary" onclick="loadRiwayatWali(${currentPage + 1})" ${nextDisabled}>Sel »</button>`;
-      }
-      pagination.innerHTML = pagHtml;
-    }
-
-    function editWali(id) {
-      showLoading(true);
-      google.script.run
-        .withSuccessHandler(function (r) {
-          showLoading(false);
-          if (r.success) {
-            tampilkanModalEditWali(r.data);
-          } else {
-            showError(r.error || 'Gagal memuat data');
-          }
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-            showError('Gagal: ' + e);
-        })
-        .getPembinaanWaliById(id, App.user.profil.email);
-    }
-
-    function tampilkanModalEditWali(data) {
-      const modalHtml = `
-        <div id="modalEditWali" class="modal" style="display:block;">
-          <div class="modal-content" style="max-width:600px;">
-            <div class="modal-header">
-              <h3 style="color:#2e7d32;">✏️ EDIT PEMBINAAN</h3>
-              <span class="close-btn" onclick="tutupModalEditWali()">&times;</span>
-            </div>
-            <div class="modal-body">
-              <input type="hidden" id="editWaliId" value="${data.id}">
-              
-              <div style="background:#e8f5e9; padding:10px; margin-bottom:15px; border-radius:5px;">
-                <strong>Siswa:</strong> ${data.nama} (${data.kelas}) <br>
-                <strong>NIS:</strong> ${data.nis}
-              </div>
-              
-              <div class="form-group">
-                <label>Tanggal</label>
-                <input type="date" id="editWaliTanggal" class="form-control" value="${data.tanggal}">
-              </div>
-              
-              <div class="form-group">
-                <label>Topik Pembahasan</label>
-                <input type="text" id="editWaliTopik" class="form-control" value="${data.topik}">
-              </div>
-              
-              <div class="form-group">
-                <label>Permasalahan</label>
-                <textarea id="editWaliMasalah" class="form-control" rows="3">${data.masalah}</textarea>
-              </div>
-              
-              <div class="form-group">
-                <label>Isi Pembinaan / Arahan</label>
-                <textarea id="editWaliIsi" class="form-control" rows="3">${data.isi}</textarea>
-              </div>
-              
-              <div class="form-group">
-                <label>Tindak Lanjut</label>
-                <textarea id="editWaliTindakLanjut" class="form-control" rows="2">${data.tindakLanjut}</textarea>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button class="btn btn-success" onclick="simpanEditWali()">💾 SIMPAN</button>
-              <button class="btn btn-warning" onclick="tutupModalEditWali()">BATAL</button>
-            </div>
-          </div>
-        </div>
-      `;
-
-      const modalLama = document.getElementById('modalEditWali');
-      if (modalLama) modalLama.remove();
-
-      document.body.insertAdjacentHTML('beforeend', modalHtml);
-    }
-
-    function tutupModalEditWali() {
-      const modal = document.getElementById('modalEditWali');
-      if (modal) modal.remove();
-    }
-
-    function simpanEditWali() {
-      const id = document.getElementById('editWaliId').value;
-      const dataBaru = {
-        tanggal: document.getElementById('editWaliTanggal').value,
-        topik: document.getElementById('editWaliTopik').value,
-        masalah: document.getElementById('editWaliMasalah').value,
-        isi: document.getElementById('editWaliIsi').value,
-        tindakLanjut: document.getElementById('editWaliTindakLanjut').value
-      };
-
-      if (!dataBaru.tanggal || !dataBaru.topik) {
-        showError('Tanggal dan Topik harus diisi!');
-        return;
-      }
-
-      toggleButtonLoading('button[onclick="simpanEditWali()"]', true, '⏳ Menyimpan...');
-      google.script.run
-        .withSuccessHandler(function (r) {
-          toggleButtonLoading('button[onclick="simpanEditWali()"]', false);
-          if (r.success) {
-            showSuccess('Pembinaan diupdate');
-            tutupModalEditWali();
-            loadRiwayatWali(App.currentWaliPage);
-          } else {
-            showError(r.error || 'Gagal mengupdate');
-          }
-        })
-        .withFailureHandler(function (e) {
-          toggleButtonLoading('button[onclick="simpanEditWali()"]', false);
-            showError('Gagal: ' + e);
-        })
-        .updatePembinaanWali(id, Object.assign(dataBaru, { userEmail: App.user.profil.email }));
-    }
-
-    function hapusWali(id) {
-      showCustomConfirm('Yakin ingin menghapus riwayat pembinaan ini secara permanen?', function () {
-        showLoading(true, 'Menghapus data...');
-        google.script.run
-          .withSuccessHandler(function (r) {
-            showLoading(false);
-            if (r.success) {
-              showSuccess('Data berhasil dihapus');
-              loadRiwayatWali(App.currentWaliPage);
-            } else {
-              showError(r.error || 'Gagal menghapus data');
-            }
-          })
-          .withFailureHandler(function (e) {
-            showLoading(false);
-              showError('Gagal: ' + e);
-          })
-          .hapusPembinaanWaliBackend(id, App.user.profil.email);
-      }, 'danger');
-    }
 
     // ============================================================
     // ============ FUNGSI BERANDA ================================
@@ -7577,6 +7220,469 @@
         currentConfirmCallback();
       }
       currentConfirmCallback = null;
+    }
+
+    // ============================================================
+    // ============ MODUL MENU WALI (PENASEHAT AKADEMIK) ==========
+    // ============================================================
+    let dataAnakAsuh = [];
+    let riwayatPembinaan = [];
+
+    function switchWaliTab(tabId) {
+      document.querySelectorAll('.wali-tab-content').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.wali-tab-btn').forEach(el => {
+        el.classList.remove('active');
+        el.style.background = '#e8f5e9';
+        el.style.color = '#1b5e20';
+        el.style.borderColor = '#c8e6c9';
+      });
+
+      document.getElementById(tabId).style.display = 'block';
+      
+      const activeBtn = document.querySelector(`button[onclick="switchWaliTab('${tabId}')"]`);
+      if (activeBtn) {
+        activeBtn.classList.add('active');
+        activeBtn.style.background = '#2e7d32';
+        activeBtn.style.color = 'white';
+        activeBtn.style.borderColor = '#1b5e20';
+      }
+
+      if (tabId === 'tabInputPembinaan') {
+        loadSiswaBimbinganDropdown();
+        loadRiwayatPembinaan();
+      } else if (tabId === 'tabDataAnakAsuh') {
+        loadDataAnakAsuh();
+      }
+    }
+
+    async function loadSiswaBimbinganDropdown() {
+      const loginUsername = App.user.username; 
+      const selectSiswa = document.getElementById('pembinaanSiswaTarget');
+      
+      if (!selectSiswa) return;
+      selectSiswa.innerHTML = '<option value="">⏳ Memuat data...</option>';
+
+      try {
+        const { data, error } = await supaClient
+          .from('data_siswa')
+          .select('nis, nama, kelas')
+          .eq('email_guru_wali', loginUsername)
+          .order('nama', { ascending: true });
+
+        if (error) throw error;
+        dataAnakAsuh = data || [];
+        
+        if (dataAnakAsuh.length === 0) {
+          selectSiswa.innerHTML = '<option value="">-- Anda tidak memiliki anak asuh --</option>';
+          return;
+        }
+
+        let options = '<option value="">-- Pilih Anak Asuh --</option>';
+        dataAnakAsuh.forEach(s => {
+          options += `<option value="${s.nis}" data-nama="${s.nama}" data-kelas="${s.kelas}">${s.nis} - ${s.nama} (${s.kelas})</option>`;
+        });
+        selectSiswa.innerHTML = options;
+      } catch (err) {
+        console.error('Error loadSiswaBimbinganDropdown:', err);
+        selectSiswa.innerHTML = '<option value="">Gagal memuat data</option>';
+      }
+    }
+
+    async function simpanPembinaanWali() {
+      const tanggal = document.getElementById('pembinaanTanggal').value;
+      const siswaSelect = document.getElementById('pembinaanSiswaTarget');
+      const topik = document.getElementById('pembinaanTopik').value;
+      const masalah = document.getElementById('pembinaanMasalah').value;
+      const isi = document.getElementById('pembinaanIsi').value;
+      const tindakLanjut = document.getElementById('pembinaanTindakLanjut').value;
+
+      if (!tanggal || !siswaSelect.value || !topik || !masalah || !isi) {
+        showError('Mohon lengkapi Tanggal, Siswa Target, Topik, Permasalahan, dan Isi Pembinaan.');
+        return;
+      }
+
+      const selectedOption = siswaSelect.selectedOptions[0];
+      const nis = selectedOption.value;
+      const nama = selectedOption.dataset.nama;
+      const kelas = selectedOption.dataset.kelas;
+
+      toggleButtonLoading('button[onclick="simpanPembinaanWali()"]', true, '⏳ Menyimpan...');
+      
+      try {
+        const { error } = await supaClient.from('pembinaan_wali').insert([{
+          tanggal: tanggal,
+          kelas: kelas,
+          nis: nis,
+          nama: nama,
+          topik: topik,
+          masalah: masalah,
+          isi: isi,
+          tindak_lanjut: tindakLanjut,
+          username_guru: App.user.username
+        }]);
+
+        toggleButtonLoading('button[onclick="simpanPembinaanWali()"]', false);
+        if (error) throw error;
+
+        showSuccess('Data pembinaan berhasil disimpan!');
+        
+        document.getElementById('pembinaanSiswaTarget').value = '';
+        document.getElementById('pembinaanTopik').value = '';
+        document.getElementById('pembinaanMasalah').value = '';
+        document.getElementById('pembinaanIsi').value = '';
+        document.getElementById('pembinaanTindakLanjut').value = '';
+        
+        loadRiwayatPembinaan();
+      } catch (err) {
+        toggleButtonLoading('button[onclick="simpanPembinaanWali()"]', false);
+        showError('Gagal menyimpan pembinaan: ' + err.message);
+      }
+    }
+
+    async function loadRiwayatPembinaan() {
+      const tbody = document.getElementById('riwayatPembinaanTbody');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">⏳ Memuat data...</td></tr>';
+
+      try {
+        const { data, error } = await supaClient
+          .from('pembinaan_wali')
+          .select('*')
+          .eq('username_guru', App.user.username)
+          .order('tanggal', { ascending: false })
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        riwayatPembinaan = data || [];
+        renderTabelRiwayatPembinaan();
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:red;">Gagal memuat: ${err.message}</td></tr>`;
+      }
+    }
+
+    function renderTabelRiwayatPembinaan() {
+      const tbody = document.getElementById('riwayatPembinaanTbody');
+      if (!riwayatPembinaan || riwayatPembinaan.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Belum ada riwayat pembinaan</td></tr>';
+        return;
+      }
+
+      let html = '';
+      riwayatPembinaan.forEach((row, idx) => {
+        html += `
+          <tr>
+            <td style="text-align:center;">${idx + 1}</td>
+            <td style="text-align:center;">${row.tanggal}</td>
+            <td><b>${row.nama}</b><br><small class="text-muted">NIS: ${row.nis} | Kls: ${row.kelas}</small></td>
+            <td>${row.topik}</td>
+            <td>${row.masalah}</td>
+            <td>${row.isi}</td>
+            <td>${row.tindak_lanjut || '-'}</td>
+            <td style="text-align:center;">
+              <button class="btn-icon" style="color:#1976d2; margin-bottom:5px;" onclick="editPembinaan(${row.id})" title="Edit">✏️</button>
+              <button class="btn-icon" style="color:#d32f2f;" onclick="hapusPembinaan(${row.id})" title="Hapus">🗑️</button>
+            </td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = html;
+    }
+
+    let currentEditPembinaanId = null;
+
+    function editPembinaan(id) {
+      const data = riwayatPembinaan.find(p => p.id === id);
+      if (!data) return;
+
+      currentEditPembinaanId = id;
+      
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.id = 'modalEditPembinaan';
+      modal.style.display = 'block';
+
+      modal.innerHTML = `
+        <div class="modal-content" style="max-width:600px;">
+          <div class="modal-header">
+            <h3 style="color:#2e7d32;">✏️ EDIT PEMBINAAN</h3>
+            <span class="close-btn" onclick="document.getElementById('modalEditPembinaan').remove()" style="cursor:pointer; font-size:24px;">&times;</span>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label>Tanggal</label>
+              <input type="date" id="editPembinaanTanggal" class="form-control" value="${data.tanggal}">
+            </div>
+            <div class="form-group">
+              <label>Siswa Target</label>
+              <input type="text" class="form-control" value="${data.nama} (${data.nis})" readonly style="background:#f5f5f5;">
+            </div>
+            <div class="form-group">
+              <label>Topik Pembinaan</label>
+              <input type="text" id="editPembinaanTopik" class="form-control" value="${data.topik}">
+            </div>
+            <div class="form-group">
+              <label>Permasalahan</label>
+              <textarea id="editPembinaanMasalah" class="form-control" rows="2">${data.masalah}</textarea>
+            </div>
+            <div class="form-group">
+              <label>Isi Pembinaan / Nasihat</label>
+              <textarea id="editPembinaanIsi" class="form-control" rows="3">${data.isi}</textarea>
+            </div>
+            <div class="form-group">
+              <label>Tindak Lanjut</label>
+              <textarea id="editPembinaanTindakLanjut" class="form-control" rows="2">${data.tindak_lanjut || ''}</textarea>
+            </div>
+          </div>
+          <div class="modal-footer" style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
+            <button class="btn btn-success" onclick="simpanEditPembinaan()">💾 SIMPAN</button>
+            <button class="btn btn-warning" onclick="document.getElementById('modalEditPembinaan').remove()">BATAL</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    async function simpanEditPembinaan() {
+      if (!currentEditPembinaanId) return;
+
+      const dataBaru = {
+        tanggal: document.getElementById('editPembinaanTanggal').value,
+        topik: document.getElementById('editPembinaanTopik').value,
+        masalah: document.getElementById('editPembinaanMasalah').value,
+        isi: document.getElementById('editPembinaanIsi').value,
+        tindak_lanjut: document.getElementById('editPembinaanTindakLanjut').value
+      };
+
+      if (!dataBaru.tanggal || !dataBaru.topik || !dataBaru.masalah || !dataBaru.isi) {
+        showError('Harap lengkapi semua field yang wajib!');
+        return;
+      }
+
+      showLoading(true, 'Sedang menyimpan perubahan...');
+      try {
+        const { error } = await supaClient
+          .from('pembinaan_wali')
+          .update(dataBaru)
+          .eq('id', currentEditPembinaanId);
+
+        showLoading(false);
+        if (error) throw error;
+
+        showSuccess('Data pembinaan berhasil diperbarui');
+        document.getElementById('modalEditPembinaan').remove();
+        loadRiwayatPembinaan();
+      } catch (err) {
+        showLoading(false);
+        showError('Gagal mengupdate pembinaan: ' + err.message);
+      }
+    }
+
+    async function hapusPembinaan(id) {
+      if (!confirm('Yakin ingin menghapus data pembinaan ini? Tindakan ini tidak dapat dibatalkan.')) return;
+      try {
+        const { error } = await supaClient.from('pembinaan_wali').delete().eq('id', id);
+        if (error) throw error;
+        showSuccess('Data berhasil dihapus');
+        loadRiwayatPembinaan();
+      } catch (err) {
+        showError('Gagal menghapus data: ' + err.message);
+      }
+    }
+
+    async function loadDataAnakAsuh() {
+      const tbody = document.getElementById('dataAnakAsuhTbody');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">⏳ Menghitung rekapitulasi poin anak asuh...</td></tr>';
+
+      if (!dataAnakAsuh || dataAnakAsuh.length === 0) {
+        const { data } = await supaClient
+          .from('data_siswa')
+          .select('nis, nama, kelas')
+          .eq('email_guru_wali', App.user.username)
+          .order('nama', { ascending: true });
+        dataAnakAsuh = data || [];
+      }
+
+      if (dataAnakAsuh.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Tidak ada data anak asuh</td></tr>';
+        return;
+      }
+
+      const nisList = dataAnakAsuh.map(s => s.nis);
+
+      try {
+        const [resPelanggaran, resCatatan] = await Promise.all([
+          supaClient.from('pelanggaran').select('nis, poin').in('nis', nisList),
+          supaClient.from('catatan').select('nis, poin').in('nis', nisList)
+        ]);
+
+        const pelanggaranMap = {};
+        (resPelanggaran.data || []).forEach(p => {
+          pelanggaranMap[p.nis] = (pelanggaranMap[p.nis] || 0) + (p.poin || 0);
+        });
+
+        const catatanMap = {};
+        (resCatatan.data || []).forEach(c => {
+          catatanMap[c.nis] = (catatanMap[c.nis] || 0) + (c.poin || 0);
+        });
+
+        let html = '';
+        dataAnakAsuh.forEach((s, idx) => {
+          const poinPositif = catatanMap[s.nis] || 0;
+          const poinNegatif = pelanggaranMap[s.nis] || 0;
+          html += `
+            <tr style="border-bottom:1px solid #eee;">
+              <td style="text-align:center; padding:10px;">${idx + 1}</td>
+              <td style="padding:10px;"><b>${s.nama}</b></td>
+              <td style="text-align:center; padding:10px;">${s.nis}</td>
+              <td style="text-align:center; padding:10px;">${s.kelas}</td>
+              <td style="text-align:center; font-weight:bold; color:#2e7d32; padding:10px;">+${poinPositif}</td>
+              <td style="text-align:center; font-weight:bold; color:#b71c1c; padding:10px;">${poinNegatif}</td>
+              <td style="text-align:center; padding:10px;">
+                <button class="btn btn-primary" style="padding:6px 12px; font-size:12px; font-weight:bold;" onclick="bukaBukuSaku('${s.nis}', '${s.nama.replace(/'/g, "\\'")}')">📖 BUKU SAKU</button>
+              </td>
+            </tr>
+          `;
+        });
+        tbody.innerHTML = html;
+      } catch (err) {
+        console.error(err);
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:red;">Gagal menghitung rekap: ${err.message}</td></tr>`;
+      }
+    }
+
+    function bukaBukuSaku(nis, nama) {
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.id = 'modalBukuSaku';
+      modal.style.display = 'block';
+
+      modal.innerHTML = `
+        <div class="modal-content" style="max-width:95%; min-height:85vh; padding:0; overflow:hidden; display:flex; flex-direction:column;">
+          <div style="background:#1b5e20; color:white; padding:15px 20px; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <h2 style="margin:0; font-size:18px;">📖 BUKU SAKU DIGITAL</h2>
+              <div style="font-size:14px; opacity:0.9;">Siswa: <b>${nama}</b> (NIS: ${nis})</div>
+            </div>
+            <span onclick="document.getElementById('modalBukuSaku').remove()" style="cursor:pointer; font-size:28px;">&times;</span>
+          </div>
+          <div style="padding:20px; flex:1; overflow-y:auto; background:#f5f5f5;">
+            <div id="bukuSakuLoading" style="text-align:center; padding:50px;">
+              <div class="spinner"></div>
+              <p>Memuat rekam jejak siswa...</p>
+            </div>
+            <div id="bukuSakuContent" style="display:none;"></div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      loadDetailBukuSaku(nis);
+    }
+
+    async function loadDetailBukuSaku(nis) {
+      try {
+        const [resShalat, resCatatan, resPelanggaran] = await Promise.all([
+          supaClient.from('shalat').select('*').eq('nis', nis).order('tanggal', { ascending: false }),
+          supaClient.from('catatan').select('*, master_dimensi(*)').eq('nis', nis).order('tanggal', { ascending: false }),
+          supaClient.from('pelanggaran').select('*').eq('nis', nis).order('tanggal', { ascending: false })
+        ]);
+
+        let html = '';
+
+        const shalatData = resShalat.data || [];
+        let shalatY = 0, shalatT = 0, shalatH = 0;
+        shalatData.forEach(s => {
+          if (s.status === 'Y') shalatY++;
+          else if (s.status === 'T') shalatT++;
+          else if (s.status === 'H') shalatH++;
+        });
+
+        html += `
+          <div class="form-section" style="margin-bottom:15px;">
+            <h3>🕌 Rekap Ibadah (Shalat Dzuhur/Jumat)</h3>
+            <div style="display:flex; gap:20px; flex-wrap:wrap;">
+              <div style="background:#e8f5e9; padding:10px 15px; border-radius:8px; border-left:4px solid #2e7d32; flex:1; min-width:120px;">
+                <div style="font-size:12px; color:#555;">Hadir (Y)</div>
+                <div style="font-size:20px; font-weight:bold; color:#2e7d32;">${shalatY}</div>
+              </div>
+              <div style="background:#ffebee; padding:10px 15px; border-radius:8px; border-left:4px solid #b71c1c; flex:1; min-width:120px;">
+                <div style="font-size:12px; color:#555;">Tidak (T)</div>
+                <div style="font-size:20px; font-weight:bold; color:#b71c1c;">${shalatT}</div>
+              </div>
+              <div style="background:#fff3e0; padding:10px 15px; border-radius:8px; border-left:4px solid #f57c00; flex:1; min-width:120px;">
+                <div style="font-size:12px; color:#555;">Halangan (H)</div>
+                <div style="font-size:20px; font-weight:bold; color:#f57c00;">${shalatH}</div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const catatanData = resCatatan.data || [];
+        const pelanggaranData = resPelanggaran.data || [];
+        const sikapList = [];
+        catatanData.forEach(c => {
+          const dim = c.master_dimensi || {};
+          sikapList.push({
+            tanggal: c.tanggal, tipe: 'POSITIF', tipeClass: 'positif',
+            kategori: dim.dimensi || 'Catatan Baik', detail: dim.elemen || c.catatan,
+            poin: c.poin, keterangan: c.catatan, guru: c.username_guru
+          });
+        });
+        pelanggaranData.forEach(p => {
+          sikapList.push({
+            tanggal: p.tanggal, tipe: 'NEGATIF', tipeClass: 'negatif',
+            kategori: p.jenis, detail: p.perilaku,
+            poin: p.poin, keterangan: p.tindak_lanjut, guru: p.username_guru
+          });
+        });
+
+        sikapList.sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+
+        html += `
+          <div class="form-section">
+            <h3>📝 Riwayat Sikap (Positif & Negatif)</h3>
+            <div style="overflow-x:auto;">
+              <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">
+                <thead>
+                  <tr style="background:#e8f5e9; color:#1b5e20;">
+                    <th style="padding:10px; border-bottom:2px solid #a5d6a7;">Tanggal</th>
+                    <th style="padding:10px; border-bottom:2px solid #a5d6a7;">Tipe</th>
+                    <th style="padding:10px; border-bottom:2px solid #a5d6a7;">Kategori / Jenis</th>
+                    <th style="padding:10px; border-bottom:2px solid #a5d6a7;">Detail / Perilaku</th>
+                    <th style="padding:10px; border-bottom:2px solid #a5d6a7; text-align:center;">Poin</th>
+                    <th style="padding:10px; border-bottom:2px solid #a5d6a7;">Guru</th>
+                  </tr>
+                </thead>
+                <tbody>
+        `;
+
+        if (sikapList.length === 0) {
+          html += '<tr><td colspan="6" style="text-align:center; padding:15px;">Belum ada riwayat sikap</td></tr>';
+        } else {
+          sikapList.forEach(s => {
+            const poinColor = s.tipe === 'POSITIF' ? '#2e7d32' : '#b71c1c';
+            const poinSign = s.tipe === 'POSITIF' ? '+' : '';
+            html += `
+              <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:10px;">${s.tanggal}</td>
+                <td style="padding:10px;"><span class="${s.tipeClass}" style="font-size:11px; padding:2px 6px;">${s.tipe}</span></td>
+                <td style="padding:10px;">${s.kategori}</td>
+                <td style="padding:10px;">${s.detail}<br><small class="text-muted">${s.keterangan || ''}</small></td>
+                <td style="padding:10px; text-align:center; font-weight:bold; color:${poinColor};">${poinSign}${s.poin || 0}</td>
+                <td style="padding:10px; font-size:12px;">${s.guru}</td>
+              </tr>
+            `;
+          });
+        }
+        html += `</tbody></table></div></div>`;
+
+        document.getElementById('bukuSakuLoading').style.display = 'none';
+        const contentDiv = document.getElementById('bukuSakuContent');
+        contentDiv.innerHTML = html;
+        contentDiv.style.display = 'block';
+      } catch (err) {
+        document.getElementById('bukuSakuLoading').innerHTML = `<p style="color:red;">Gagal memuat rekam jejak: ${err.message}</p>`;
+      }
     }
 
   </script>
