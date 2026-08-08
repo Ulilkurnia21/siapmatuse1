@@ -5335,7 +5335,7 @@
 
       const bulanIndo = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
       const now = new Date();
-      let bulanOpt = '';
+      let bulanOpt = '<option value="all">Semua Bulan</option>';
       bulanIndo.forEach((b, i) => {
         const selected = (i + 1) === (now.getMonth() + 1) ? 'selected' : '';
         bulanOpt += `<option value="${i + 1}" ${selected}>${b}</option>`;
@@ -5527,7 +5527,8 @@
       const kelas = document.getElementById('nilaiKelas').value;
       const mapel = document.getElementById('nilaiMapel').value;
       const jenis = document.getElementById('nilaiJenis').value;
-      const bulan = parseInt(document.getElementById('nilaiBulan').value);
+      const bulanInput = document.getElementById('nilaiBulan').value;
+      const bulan = bulanInput === 'all' ? 'all' : parseInt(bulanInput);
       const tahun = parseInt(document.getElementById('nilaiTahun').value);
       if (!kelas || !mapel) { showError('Pilih kelas dan mapel!'); return; }
       showLoading(true);
@@ -5544,11 +5545,22 @@
           if (error) throw error;
           siswaData = data;
         }
-        const startDate = new Date(tahun, bulan - 1, 1).toISOString();
-        const endDate = new Date(tahun, bulan, 0).toISOString();
-        const { data: nilaiData, error: nilaiError } = await supaClient.from('nilai').select('*')
+        let queryNilai = supaClient.from('nilai').select('*')
           .eq('kelas', kelas).eq('matapelajaran', mapel).eq('jenistugas', jenis)
-          .gte('tanggal', startDate).lte('tanggal', endDate).order('nopenilaian', { ascending: true });
+          .order('nopenilaian', { ascending: true });
+        
+        if (bulan !== 'all') {
+          const startDate = new Date(tahun, bulan - 1, 1).toISOString();
+          const endDate = new Date(tahun, bulan, 0).toISOString();
+          queryNilai = queryNilai.gte('tanggal', startDate).lte('tanggal', endDate);
+        } else {
+          // Jika Semua Bulan, tampilkan data untuk sepanjang tahun tersebut
+          const startDate = new Date(tahun, 0, 1).toISOString();
+          const endDate = new Date(tahun, 12, 0).toISOString();
+          queryNilai = queryNilai.gte('tanggal', startDate).lte('tanggal', endDate);
+        }
+        
+        const { data: nilaiData, error: nilaiError } = await queryNilai;
         if (nilaiError) throw nilaiError;
         const existingNilai = {};
         const daftarPenilaianSet = new Set();
