@@ -1392,8 +1392,8 @@
 
             <div class="form-section" style="margin-top:20px;">
               <h3>📋 Riwayat Pembinaan</h3>
-              <div class="table-responsive">
-                <table class="data-table">
+              <div class="table-responsive" style="overflow-x: auto; width: 100%;">
+                <table class="data-table" style="min-width: 700px;">
                   <thead>
                     <tr>
                       <th style="width:50px;">No</th>
@@ -1419,8 +1419,8 @@
             <div class="form-section">
               <h3>📊 Monitoring Anak Asuh</h3>
               <p style="font-size:13px; color:#555; margin-bottom:15px;">Tabel ini menampilkan kalkulasi total poin kebaikan (+) dan pelanggaran (-) dari setiap anak asuh Anda.</p>
-              <div class="table-responsive">
-                <table class="data-table">
+              <div class="table-responsive" style="overflow-x: auto; width: 100%;">
+                <table class="data-table" style="min-width: 600px;">
                   <thead>
                     <tr>
                       <th style="width:50px; text-align:center;">No</th>
@@ -7278,6 +7278,7 @@
         }
 
         let options = '<option value="">-- Pilih Anak Asuh --</option>';
+        options += '<option value="SEMUA" data-nama="Seluruh Anak Asuh" data-kelas="-">-- Seluruh Anak Asuh --</option>';
         dataAnakAsuh.forEach(s => {
           options += `<option value="${s.nis}" data-nama="${s.nama}" data-kelas="${s.kelas}">${s.nis} - ${s.nama} (${s.kelas})</option>`;
         });
@@ -7309,17 +7310,34 @@
       toggleButtonLoading('button[onclick="simpanPembinaanWali()"]', true, '⏳ Menyimpan...');
       
       try {
-        const { error } = await supaClient.from('pembinaan_wali').insert([{
-          tanggal: tanggal,
-          kelas: kelas,
-          nis: nis,
-          nama: nama,
-          topik: topik,
-          masalah: masalah,
-          isi: isi,
-          tindak_lanjut: tindakLanjut,
-          username_guru: App.user.username
-        }]);
+        let insertData = [];
+        if (nis === 'SEMUA') {
+          insertData = dataAnakAsuh.map(s => ({
+            tanggal: tanggal,
+            kelas: s.kelas,
+            nis: s.nis,
+            nama: s.nama,
+            topik: topik,
+            masalah: masalah,
+            isi: isi,
+            tindak_lanjut: tindakLanjut,
+            username_guru: App.user.username
+          }));
+        } else {
+          insertData = [{
+            tanggal: tanggal,
+            kelas: kelas,
+            nis: nis,
+            nama: nama,
+            topik: topik,
+            masalah: masalah,
+            isi: isi,
+            tindak_lanjut: tindakLanjut,
+            username_guru: App.user.username
+          }];
+        }
+
+        const { error } = await supaClient.from('pembinaan_wali').insert(insertData);
 
         toggleButtonLoading('button[onclick="simpanPembinaanWali()"]', false);
         if (error) throw error;
@@ -7581,10 +7599,13 @@
 
     async function loadDetailBukuSaku(nis) {
       try {
-        const [resShalat, resCatatan, resPelanggaran] = await Promise.all([
+        const [resShalat, resCatatan, resPelanggaran, resDimensi, resAbsensi, resNilai] = await Promise.all([
           supaClient.from('shalat').select('*').eq('nis', nis).order('tanggal', { ascending: false }),
-          supaClient.from('catatan').select('*, master_dimensi(*)').eq('nis', nis).order('tanggal', { ascending: false }),
-          supaClient.from('pelanggaran').select('*').eq('nis', nis).order('tanggal', { ascending: false })
+          supaClient.from('catatan').select('*').eq('nis', nis).order('tanggal', { ascending: false }),
+          supaClient.from('pelanggaran').select('*').eq('nis', nis).order('tanggal', { ascending: false }),
+          supaClient.from('master_dimensi').select('*'),
+          supaClient.from('absensi').select('*').eq('nis', nis),
+          supaClient.from('nilai').select('*').eq('nis', nis).order('matapelajaran', { ascending: true }).order('jenistugas', { ascending: true }).order('nopenilaian', { ascending: true })
         ]);
 
         let html = '';
@@ -7597,31 +7618,63 @@
           else if (s.status === 'H') shalatH++;
         });
 
+        const absensiData = resAbsensi.data || [];
+        let absS = 0, absI = 0, absA = 0;
+        absensiData.forEach(a => {
+          const ket = (a.keterangan || a.status || '').toUpperCase();
+          if (ket === 'S') absS++;
+          else if (ket === 'I') absI++;
+          else if (ket === 'A') absA++;
+        });
+
         html += `
-          <div class="form-section" style="margin-bottom:15px;">
-            <h3>🕌 Rekap Ibadah (Shalat Dzuhur/Jumat)</h3>
-            <div style="display:flex; gap:20px; flex-wrap:wrap;">
-              <div style="background:#e8f5e9; padding:10px 15px; border-radius:8px; border-left:4px solid #2e7d32; flex:1; min-width:120px;">
-                <div style="font-size:12px; color:#555;">Hadir (Y)</div>
-                <div style="font-size:20px; font-weight:bold; color:#2e7d32;">${shalatY}</div>
+          <div style="display:flex; gap:20px; flex-wrap:wrap; margin-bottom:15px;">
+            <div class="form-section" style="flex:1; min-width:300px; margin-bottom:0;">
+              <h3>🕌 Rekap Ibadah Shalat</h3>
+              <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <div style="background:#e8f5e9; padding:10px; border-radius:8px; border-left:4px solid #2e7d32; flex:1;">
+                  <div style="font-size:11px; color:#555;">Hadir (Y)</div>
+                  <div style="font-size:18px; font-weight:bold; color:#2e7d32;">${shalatY}</div>
+                </div>
+                <div style="background:#ffebee; padding:10px; border-radius:8px; border-left:4px solid #b71c1c; flex:1;">
+                  <div style="font-size:11px; color:#555;">Tidak (T)</div>
+                  <div style="font-size:18px; font-weight:bold; color:#b71c1c;">${shalatT}</div>
+                </div>
+                <div style="background:#fff3e0; padding:10px; border-radius:8px; border-left:4px solid #f57c00; flex:1;">
+                  <div style="font-size:11px; color:#555;">Halangan (H)</div>
+                  <div style="font-size:18px; font-weight:bold; color:#f57c00;">${shalatH}</div>
+                </div>
               </div>
-              <div style="background:#ffebee; padding:10px 15px; border-radius:8px; border-left:4px solid #b71c1c; flex:1; min-width:120px;">
-                <div style="font-size:12px; color:#555;">Tidak (T)</div>
-                <div style="font-size:20px; font-weight:bold; color:#b71c1c;">${shalatT}</div>
-              </div>
-              <div style="background:#fff3e0; padding:10px 15px; border-radius:8px; border-left:4px solid #f57c00; flex:1; min-width:120px;">
-                <div style="font-size:12px; color:#555;">Halangan (H)</div>
-                <div style="font-size:20px; font-weight:bold; color:#f57c00;">${shalatH}</div>
+            </div>
+            
+            <div class="form-section" style="flex:1; min-width:300px; margin-bottom:0;">
+              <h3>📅 Rekap Absensi</h3>
+              <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <div style="background:#fff8e1; padding:10px; border-radius:8px; border-left:4px solid #fbc02d; flex:1;">
+                  <div style="font-size:11px; color:#555;">Sakit (S)</div>
+                  <div style="font-size:18px; font-weight:bold; color:#fbc02d;">${absS}</div>
+                </div>
+                <div style="background:#e3f2fd; padding:10px; border-radius:8px; border-left:4px solid #1976d2; flex:1;">
+                  <div style="font-size:11px; color:#555;">Izin (I)</div>
+                  <div style="font-size:18px; font-weight:bold; color:#1976d2;">${absI}</div>
+                </div>
+                <div style="background:#ffebee; padding:10px; border-radius:8px; border-left:4px solid #b71c1c; flex:1;">
+                  <div style="font-size:11px; color:#555;">Alpa (A)</div>
+                  <div style="font-size:18px; font-weight:bold; color:#b71c1c;">${absA}</div>
+                </div>
               </div>
             </div>
           </div>
         `;
 
+        const dimensiMap = {};
+        (resDimensi.data || []).forEach(d => { dimensiMap[d.id] = d; });
+
         const catatanData = resCatatan.data || [];
         const pelanggaranData = resPelanggaran.data || [];
         const sikapList = [];
         catatanData.forEach(c => {
-          const dim = c.master_dimensi || {};
+          const dim = dimensiMap[c.dimensi_id] || {};
           sikapList.push({
             tanggal: c.tanggal, tipe: 'POSITIF', tipeClass: 'positif',
             kategori: dim.dimensi || 'Catatan Baik', detail: dim.elemen || c.catatan,
@@ -7637,6 +7690,41 @@
         });
 
         sikapList.sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+
+        const nilaiData = resNilai.data || [];
+        html += `
+          <div class="form-section">
+            <h3>📊 Rekap Nilai Akademik</h3>
+            <div style="overflow-x:auto;">
+              <table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left; min-width:500px;">
+                <thead>
+                  <tr style="background:#e3f2fd; color:#1565c0;">
+                    <th style="padding:10px; border-bottom:2px solid #90caf9;">Mata Pelajaran</th>
+                    <th style="padding:10px; border-bottom:2px solid #90caf9;">Penilaian</th>
+                    <th style="padding:10px; border-bottom:2px solid #90caf9;">Ke</th>
+                    <th style="padding:10px; border-bottom:2px solid #90caf9;">Tanggal</th>
+                    <th style="padding:10px; border-bottom:2px solid #90caf9; text-align:center;">Nilai</th>
+                  </tr>
+                </thead>
+                <tbody>
+        `;
+
+        if (nilaiData.length === 0) {
+          html += '<tr><td colspan="5" style="text-align:center; padding:15px;">Belum ada nilai akademik</td></tr>';
+        } else {
+          nilaiData.forEach(n => {
+            html += `
+              <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:10px; font-weight:bold;">${n.matapelajaran || '-'}</td>
+                <td style="padding:10px;">${n.jenistugas || '-'}</td>
+                <td style="padding:10px;">${n.nopenilaian || '-'}</td>
+                <td style="padding:10px;">${n.tanggal || '-'}</td>
+                <td style="padding:10px; text-align:center; font-weight:bold; color:${(n.nilai && n.nilai >= 75) ? '#2e7d32' : (n.nilai !== null && n.nilai !== undefined && n.nilai !== '' ? '#b71c1c' : '#000')};">${n.nilai !== null && n.nilai !== undefined && n.nilai !== '' ? n.nilai : '-'}</td>
+              </tr>
+            `;
+          });
+        }
+        html += `</tbody></table></div></div>`;
 
         html += `
           <div class="form-section">
