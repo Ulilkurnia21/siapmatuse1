@@ -859,39 +859,123 @@ async function updateLaporanNilaiFilter() {
 
 // ================= DOWNLOAD LAPORAN SHALAT =================
     async function downloadLaporanShalat() {
-      const kelas = document.getElementById('shalatLaporanKelas').value;
-      const bulan = document.getElementById('shalatLaporanBulan').value;
-      const tahun = document.getElementById('shalatLaporanTahun').value;
+  const kelas = document.getElementById('shalatLaporanKelas').value;
+  const bulan = document.getElementById('shalatLaporanBulan').value;
+  const tahun = document.getElementById('shalatLaporanTahun').value;
 
-      if (!kelas) { showError('Pilih kelas!'); return; }
+  if (!kelas) { showError('Pilih kelas!'); return; }
 
-      const btn = document.getElementById('btnDownloadShalat');
-      if (btn) { btn.disabled = true; btn.innerHTML = '⏳ MENYIAPKAN...'; }
+  const btn = document.getElementById('btnDownloadShalat');
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ MENYIAPKAN...'; }
 
-      try {
-        let query = supaClient
-          .from('shalat')
-          .select('nis, nama, kelas, tanggal, status, jumlah')
-          .eq('kelas', kelas)
-          .order('tanggal', { ascending: true })
-          .order('nama',    { ascending: true });
+  try {
+    // 1. Get Data Siswa
+    const isMC = !KELAS_REGULER.includes(kelas);
+    let siswaData = [];
+    if (isMC) {
+      const { data, error } = await supaClient.from('pilihan_moving_class').select('nis, nama, mapel_moving');
+      if (error) throw error;
+      siswaData = (data || []).filter(s => s.mapel_moving && s.mapel_moving.split(',').map(m => m.trim()).includes(kelas));
+      siswaData.sort((a, b) => a.nama.localeCompare(b.nama));
+    } else {
+      const { data, error } = await supaClient.from('data_siswa').select('nis, nama').eq('kelas', kelas).order('nama', { ascending: true });
+      if (error) throw error;
+      siswaData = data || [];
+    }
 
-        if (bulan && bulan !== 'ALL') {
-          const y = (tahun && tahun !== 'ALL') ? tahun : new Date().getFullYear();
-          const m = bulan.toString().padStart(2, '0');
-          query = query.gte('tanggal', `${y}-${m}-01`).lte('tanggal', `${y}-${m}-31`);
-        } else if (tahun && tahun !== 'ALL') {
-          query = query.gte('tanggal', `${tahun}-01-01`).lte('tanggal', `${tahun}-12-31`);
+    // 2. Get Wali Kelas
+    let namaWali = '(Kosong / Tidak Ditemukan)';
+    let nipWali = '-';
+    let { data: guruData } = await supaClient.from('data_guru').select('nama, nip').eq('wali_kelas', kelas).limit(1);
+    if (guruData && guruData.length > 0) {
+      namaWali = guruData[0].nama;
+      nipWali = guruData[0].nip || '-';
+    }
+
+    // 3. Get Data Shalat
+    let query = supaClient
+      .from('shalat')
+      .select('nis, nama, kelas, tanggal, status, jumlah')
+      .eq('kelas', kelas)
+      .order('tanggal', { ascending: true });
+
+    if (bulan && bulan !== 'ALL') {
+      const y = (tahun && tahun !== 'ALL') ? tahun : new Date().getFullYear();
+      const m = bulan.toString().padStart(2, '0');
+      query = query.gte('tanggal', `${y}-${m}-01`).lte('tanggal', `${y}-${m}-31`);
+    } else if (tahun && tahun !== 'ALL') {
+      query = query.gte('tanggal', `${tahun}-01-01`).lte('tanggal', `${tahun}-12-31`);
+    }
+
+    const { data: shalatData, error: shalatError } = await query;
+    if (btn) { btn.disabled = false; btn.innerHTML = '📥 DOWNLOAD LAPORAN'; }
+    if (shalatError) throw shalatError;
+
+    // 4. Group by Month
+    const monthsMap = {};
+    if (shalatData && shalatData.length > 0) {
+      shalatData.forEach(row => {
+        const tglStr = row.tanggal;
+        const yyyy = parseInt(tglStr.split('-')[0]);
+        const mm = parseInt(tglStr.split('-')[1]);
+        const key = `${yyyy}-${mm}`;
+        
+        if (!monthsMap[key]) {
+          monthsMap[key] = { yyyy, mm, records: [] };
         }
+        monthsMap[key].records.push(row);
+      });
+    } else {
+      // If no data at all, just create a dummy map for the selected month to show empty table
+      const y = (tahun && tahun !== 'ALL') ? parseInt(tahun) : new Date().getFullYear();
+      const m = (bulan && bulan !== 'ALL') ? parseInt(bulan) : new Date().getMonth() + 1;
+      monthsMap[`${y}-${m}`] = { yyyy: y, mm: m, records: [] };
+    }
 
-        const { data, error } = await query;
-        if (btn) { btn.disabled = false; btn.innerHTML = '📥 DOWNLOAD LAPORAN'; }
-        if (error) throw error;
-        if (!data || data.length === 0) { showError('Tidak ada data shalat untuk filter ini'); return; }
+    const sortedMonths = Object.values(monthsMap).sort((a, b) => {
+      if (a.yyyy !== b.yyyy) return a.yyyy - b.yyyy;
+      return a.mm - b.mm;
+    });
 
-        const rekap = {};
-        data.forEach(row => {
-          if (!rekap[row.nis]) rekap[row.nis] = { nama: row.nama, Y: 0, T: 0, H: 0, totalJml: 0, totalJmlSejakAgustus: 0, hariAdaSejakAgustus: 0 };
+    const BULAN_NAMA = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+    let html = `
+    <html>
+    <head>
+      <style>
+        @page { size: A4 landscape; margin: 1.5cm; }
+        @media print {
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          .page-break { page-break-after: always; }
+        }
+        body { font-family: Arial, sans-serif; font-size: 11px; }
+        .kop { text-align:center; margin-bottom:20px; }
+        .kop img { max-width:100%; height:auto; }
+        .header { margin:20px 0; }
+        .header-item { margin:5px 0; display: flex; }
+        .label { width: 100px; font-weight: bold; }
+        .value { flex: 1; }
+        table { width:100%; border-collapse: collapse; margin:20px 0; font-size:11px; }
+        th { background: #2e7d32 !important; color: white !important; padding: 8px; text-align: center; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        td { border: 1px solid #a5d6a7; padding: 6px; text-align: center; }
+        .ttd { margin-top: 50px; text-align: right; }
+        .ttd div { margin-top: 60px; }
+        .rekap-col { background: #e8f5e9 !important; font-weight: bold; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: black !important; }
+      </style>
+    </head>
+    <body>
+    `;
+
+    sortedMonths.forEach((mObj, index) => {
+      const mNama = BULAN_NAMA[mObj.mm];
+      
+      const rekap = {};
+      siswaData.forEach(s => {
+        rekap[s.nis] = { nama: s.nama, Y: 0, T: 0, H: 0, totalJml: 0, totalJmlSejakAgustus: 0, hariAdaSejakAgustus: 0 };
+      });
+
+      mObj.records.forEach(row => {
+        if (rekap[row.nis]) {
           rekap[row.nis][row.status] = (rekap[row.nis][row.status] || 0) + 1;
           rekap[row.nis].totalJml += (row.jumlah || 0);
           
@@ -899,71 +983,80 @@ async function updateLaporanNilaiFilter() {
             rekap[row.nis].totalJmlSejakAgustus += (row.jumlah || 0);
             rekap[row.nis].hariAdaSejakAgustus++;
           }
-        });
+        }
+      });
 
-        const siswaList = Object.entries(rekap)
-          .map(([nis, d]) => ({
-            nis, ...d, total: d.Y + d.T + d.H,
-            rataRata: d.hariAdaSejakAgustus > 0 ? (d.totalJmlSejakAgustus / d.hariAdaSejakAgustus).toFixed(1) : 'Belum ada data'
-          }))
-          .sort((a, b) => a.nama.localeCompare(b.nama));
+      html += `
+        ${KOP_SURAT_LAPORAN}
+        <div class="header">
+          <h3 style="text-align:center; margin-bottom:20px; text-transform:uppercase;">REKAPITULASI ABSENSI SHALAT</h3>
+          <div class="header-item"><span class="label">Kelas</span><span class="value">: ${kelas}</span></div>
+          <div class="header-item"><span class="label">Wali Kelas</span><span class="value">: ${namaWali}</span></div>
+          <div class="header-item"><span class="label">Periode</span><span class="value">: ${mNama} ${mObj.yyyy}</span></div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th rowspan="2" style="width:30px;">NO</th>
+              <th rowspan="2" style="width:80px;">NIS</th>
+              <th rowspan="2">NAMA SISWA</th>
+              <th colspan="3">PELAKSANAAN SHALAT</th>
+              <th rowspan="2" class="rekap-col" style="width:70px;">TOTAL HARI</th>
+              <th rowspan="2" class="rekap-col" style="width:80px;">TOTAL RAKAAT / SHALAT</th>
+              <th rowspan="2" class="rekap-col" style="width:90px;">RATA-RATA (Mulai 10 Agt)</th>
+            </tr>
+            <tr>
+              <th style="width:50px;">Ya (Y)</th>
+              <th style="width:50px;">Tidak (T)</th>
+              <th style="width:50px;">Haid (H)</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
 
-        const BULAN = ['','Januari','Februari','Maret','April','Mei','Juni',
-                       'Juli','Agustus','September','Oktober','November','Desember'];
-        const periodeStr = (bulan && bulan !== 'ALL')
-          ? `${BULAN[parseInt(bulan)]} ${(tahun && tahun !== 'ALL') ? tahun : ''}`
-          : (tahun && tahun !== 'ALL' ? `Tahun ${tahun}` : 'Semua Periode');
-
-        let rowsHtml = '';
-        siswaList.forEach((s, i) => {
-          rowsHtml += `<tr>
-            <td style="text-align:center">${i+1}</td>
+      siswaData.forEach((s, idx) => {
+        const d = rekap[s.nis];
+        const total = d.Y + d.T + d.H;
+        const rataRata = d.hariAdaSejakAgustus > 0 ? (d.totalJmlSejakAgustus / d.hariAdaSejakAgustus).toFixed(1) : 'Belum ada data';
+        
+        html += `
+          <tr>
+            <td>${idx + 1}</td>
             <td>${s.nis}</td>
             <td style="text-align:left">${s.nama}</td>
-            <td style="text-align:center;color:#2e7d32;font-weight:bold">${s.Y}</td>
-            <td style="text-align:center;color:#c62828;font-weight:bold">${s.T}</td>
-            <td style="text-align:center;color:#ff9800;font-weight:bold">${s.H}</td>
-            <td style="text-align:center;font-weight:bold">${s.total}</td>
-            <td style="text-align:center">${s.totalJml}</td>
-            <td style="text-align:center;font-weight:bold;color:#7e57c2">${s.rataRata}</td>
-          </tr>`;
-        });
+            <td>${d.Y}</td>
+            <td>${d.T}</td>
+            <td>${d.H}</td>
+            <td class="rekap-col">${total}</td>
+            <td class="rekap-col">${d.totalJml}</td>
+            <td class="rekap-col">${rataRata}</td>
+          </tr>
+        `;
+      });
 
-        const html = `<!DOCTYPE html><html><head>
-          <meta charset="UTF-8">
-          <title>Laporan Shalat - ${kelas}</title>
-          <style>
-            body{font-family:Arial,sans-serif;font-size:12px;margin:20px}
-            h2,h3{text-align:center;margin:4px 0}
-            .info{text-align:center;color:#666;font-size:11px;margin:4px 0}
-            table{width:100%;border-collapse:collapse;margin-top:12px}
-            th{background:#1565c0;color:white;padding:7px 4px;text-align:center;font-size:11px}
-            td{border:1px solid #ccc;padding:5px 4px}
-            tr:nth-child(even){background:#f5f5f5}
-          </style>
-        </head><body>
-          <h2>REKAPITULASI ABSENSI SHALAT</h2>
-          <h3>Kelas: ${kelas} &nbsp;|&nbsp; Periode: ${periodeStr}</h3>
-          <p class="info">Data shalat = pelaksanaan shalat <strong>HARI SEBELUMNYA</strong> yang diinput guru pada hari berikutnya.</p>
-          <table>
-            <thead>
-              <tr>
-                <th>No</th><th>NIS</th><th>Nama Siswa</th>
-                <th>Ya (Y)</th><th>Tidak (T)</th><th>Haid (H)</th>
-                <th>Total Hari</th><th>Total Shalat</th>
-                <th>Rata-rata<br>Shalat/Hari</th>
-              </tr>
-            </thead>
-            <tbody>${rowsHtml}</tbody>
-          </table>
-          <p class="info" style="margin-top:8px">
-            Total: ${siswaList.length} siswa &nbsp;|&nbsp; Dicetak: ${new Date().toLocaleString('id-ID')}
-          </p>
-        </body></html>`;
+      html += `
+          </tbody>
+        </table>
+        
+        <div class="ttd">
+          Padang, ${new Date().getDate()} ${mNama} ${new Date().getFullYear()}<br>
+          Wali Kelas<br>
+          <div></div>
+          <b><u>${namaWali}</u></b><br>
+          NIP. ${nipWali}
+        </div>
+      `;
 
-        openReportAndPrint(html);
-      } catch (err) {
-        if (btn) { btn.disabled = false; btn.innerHTML = '📥 DOWNLOAD LAPORAN'; }
-        showError('Gagal membuat laporan: ' + err.message);
+      if (index < sortedMonths.length - 1) {
+        html += '<div class="page-break"></div>';
       }
-    }
+    });
+
+    html += '</body></html>';
+    openReportAndPrint(html);
+
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '📥 DOWNLOAD LAPORAN'; }
+    showError('Gagal membuat laporan shalat: ' + err.message);
+  }
+}
