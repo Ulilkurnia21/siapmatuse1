@@ -1919,6 +1919,7 @@
         })
         .withFailureHandler(function (e) {
           listContainer.innerHTML = '<span style="color:red;">Gagal memuat: ' + e + '</span>';
+            showError('Gagal: ' + e);
         })
         .getSiswaAnakWali(App.user.profil.username);
     }
@@ -2061,6 +2062,7 @@
         })
         .withFailureHandler(function (e) {
           if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:red;">Error koneksi: ' + e + '</td></tr>';
+            showError('Gagal: ' + e);
         })
         .getRiwayatPembinaanWali(page, App.WALI_PER_PAGE, App.user.profil.email);
     }
@@ -2126,7 +2128,7 @@
         })
         .withFailureHandler(function (e) {
           showLoading(false);
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .getPembinaanWaliById(id, App.user.profil.email);
     }
@@ -2220,7 +2222,7 @@
         })
         .withFailureHandler(function (e) {
           toggleButtonLoading('button[onclick="simpanEditWali()"]', false);
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .updatePembinaanWali(id, Object.assign(dataBaru, { userEmail: App.user.profil.email }));
     }
@@ -2240,7 +2242,7 @@
           })
           .withFailureHandler(function (e) {
             showLoading(false);
-            showError('Gagal: ' + e);
+              showError('Gagal: ' + e);
           })
           .hapusPembinaanWaliBackend(id, App.user.profil.email);
       }, 'danger');
@@ -3239,7 +3241,7 @@
         })
         .withFailureHandler(function (e) {
           showLoading(false);
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .getPesertaEkskul(ekskulId, tahunAjaran, '');
     }
@@ -3288,7 +3290,7 @@
         })
         .withFailureHandler(function (e) {
           showLoading(false);
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .getPesertaDanAbsenEkskul(ekskulId, tahunAjaran, tanggal, '', 'input', App.user.profil.email);
     }
@@ -3417,7 +3419,7 @@
           })
           .withFailureHandler(function (e) {
             toggleButtonLoading('button[onclick="simpanAbsenEkskul()"]', false);
-            showError('Gagal: ' + e);
+              showError('Gagal: ' + e);
           })
           .simpanAbsenEkskulBatch(dataToSave.map(d => Object.assign(d, { userEmail: App.user.profil.email })));
       });
@@ -3454,7 +3456,7 @@
         })
         .withFailureHandler(function (e) {
           showLoading(false);
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .getPesertaDanAbsenEkskul(ekskulId, tahunAjaran, tanggal, '', 'edit', App.user.profil.email);
     }
@@ -3585,7 +3587,7 @@
           })
           .withFailureHandler(function (e) {
             toggleButtonLoading('button[onclick="updateAbsenEkskul()"]', false);
-            showError('Gagal: ' + e);
+              showError('Gagal: ' + e);
           })
           .updateAbsenEkskulBatch(dataToSave.map(d => Object.assign(d, { userEmail: App.user.profil.email })), ekskulId, tanggal);
       });
@@ -4100,7 +4102,6 @@
         showError('Gagal membuat laporan: ' + err.message);
       }
     }
-          showError('Gagal: ' + e);
 
 
     function loadSiswaFilterLap() {
@@ -4176,7 +4177,7 @@
           } else {
             showLoading(false);
           }
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .downloadLaporanOrangTuaPdf(nis, kelas, bulan, tahun);
     }
@@ -4231,7 +4232,7 @@
           } else {
             showLoading(false);
           }
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .downloadLaporanOrangTuaPdf(nis, kelas, bulan, tahun);
     }
@@ -4477,7 +4478,7 @@
         })
         .withFailureHandler(function (e) {
           toggleButtonLoading('button[onclick="simpanCatatan()"]', false);
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .simpanCatatan(data);
     }
@@ -4594,7 +4595,7 @@
         })
         .withFailureHandler(function (e) {
           showLoading(false);
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .getCatatanById(id);
     }
@@ -4737,7 +4738,7 @@
         })
         .withFailureHandler(function (e) {
           showLoading(false);
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .updateCatatan(currentEditId, dataBaru);
     }
@@ -4760,7 +4761,7 @@
           })
           .withFailureHandler(function (e) {
             showLoading(false);
-            showError('Gagal: ' + e);
+              showError('Gagal: ' + e);
           })
           .hapusCatatan(id);
       }, 'danger');
@@ -5120,7 +5121,7 @@
         })
         .withFailureHandler(function (e) {
           showLoading(false);
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .simpanPelanggaran(data);
     }
@@ -5143,7 +5144,7 @@
         })
         .withFailureHandler(function (e) {
           showLoading(false);
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .getPelanggaranById(id);
     }
@@ -5271,7 +5272,7 @@
         })
         .withFailureHandler(function (e) {
           showLoading(false);
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .updatePelanggaran(currentEditPelanggaranId, dataBaru);
     }
@@ -5293,7 +5294,7 @@
           })
           .withFailureHandler(function (e) {
             showLoading(false);
-            showError('Gagal: ' + e);
+              showError('Gagal: ' + e);
           })
           .hapusPelanggaran(id);
       }, 'danger');
@@ -6026,7 +6027,7 @@
           } else {
             showLoading(false);
           }
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .downloadLaporanKehadiranEkskul(ekskulId, tahunAjaran, filterKelas);
     }
@@ -6087,7 +6088,6 @@
         } else {
           showLoading(false);
         }
-        showError('Gagal: ' + e);
       }
 
       if (modeTanggal) {
@@ -6158,7 +6158,7 @@
           } else {
             showLoading(false);
           }
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .downloadLaporanSikap(kelas, tahunAjaran, jenis);
     }
@@ -7085,7 +7085,7 @@
           } else {
             showLoading(false);
           }
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .getLaporanOrangTuaDinamis(nis, kelas, bulan, tahun);
     }
@@ -7362,7 +7362,7 @@
           } else {
             showLoading(false);
           }
-          showError('Gagal: ' + e);
+            showError('Gagal: ' + e);
         })
         .downloadLaporanOrangTuaPdf(nis, kelas, bulan, tahun);
     }
@@ -7654,6 +7654,7 @@
           showCustomAlert('Error Server: ' + e, 'error');
           document.getElementById('btnGantiPass').innerText = 'SIMPAN PASSWORD';
           document.getElementById('btnGantiPass').disabled = false;
+            showError('Gagal: ' + e);
         })
         .gantiPassword(username, oldPass, newPass);
     }
