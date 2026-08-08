@@ -6021,65 +6021,6 @@
       }
     }
 
-    // ============================================================
-    // ============ LAPORAN SIKAP ================================
-    // ============================================================
-
-    function downloadLaporanSikap() {
-      const kelas = document.getElementById('laporanSikapKelas').value;
-      const tahunAjaran = document.getElementById('laporanSikapTahun').value;
-      const jenis = document.getElementById('laporanSikapJenis').value;
-
-      if (!kelas || !tahunAjaran) {
-        showError('Pilih kelas dan tahun ajaran!');
-        return;
-      }
-
-      const btn = document.getElementById('btnDownloadSikap');
-      if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '⏳ MENYIAPKAN...';
-      } else {
-        showLoading(true, 'Sedang menyiapkan laporan, mohon tunggu (maksimal 3 menit)...');
-      }
-
-      const timeoutId = setTimeout(() => {
-        if (btn) {
-          btn.disabled = false;
-          btn.innerHTML = '📥 DOWNLOAD PDF';
-        } else {
-          showLoading(false);
-        }
-        showError('Permintaan waktu habis (Timeout). Data mungkin terlalu besar atau koneksi lambat.');
-      }, 180000);
-
-      google.script.run
-        .withSuccessHandler(function (r) {
-          clearTimeout(timeoutId);
-          if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '📥 DOWNLOAD PDF';
-          } else {
-            showLoading(false);
-          }
-          if (r.success) {
-            openReportAndPrint(r.html);
-          } else {
-            showError(r.error || 'Gagal membuat laporan');
-          }
-        })
-        .withFailureHandler(function (e) {
-          clearTimeout(timeoutId);
-          if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '📥 DOWNLOAD PDF';
-          } else {
-            showLoading(false);
-          }
-            showError('Gagal: ' + e);
-        })
-        .downloadLaporanSikap(kelas, tahunAjaran, jenis);
-    }
 
     // ============================================================
     // ============ FUNGSI JURNAL (LANGSUNG DI INDEX) ============
