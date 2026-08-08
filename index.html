@@ -4269,20 +4269,21 @@
       loadDimensiDropdown();
     }
     // Load dropdown dimensi
-    function loadDimensiDropdown() {
+    async function loadDimensiDropdown() {
       showLoading(true);
-
-      google.script.run
-        .withSuccessHandler(function (data) {
-          showLoading(false);
-          masterDimensi = data; // Simpan di global
-          renderDimensiDropdown(data);
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-          showError('Gagal memuat dimensi: ' + e);
-        })
-        .getMasterDimensi();
+      try {
+        const { data, error } = await supaClient.from('master_dimensi').select('*');
+        showLoading(false);
+        if (error) throw error;
+        // Konversi array ke object keyed by id (format yang sama dengan sebelumnya)
+        const dimensiMap = {};
+        (data || []).forEach(d => { dimensiMap[d.id] = d; });
+        masterDimensi = dimensiMap;
+        renderDimensiDropdown(dimensiMap);
+      } catch (e) {
+        showLoading(false);
+        showError('Gagal memuat dimensi: ' + e.message);
+      }
     }
 
     // Fungsi untuk render dropdown dimensi (tanpa panggil server)
@@ -4341,7 +4342,7 @@
       selectElemen.innerHTML = options;
     }
     // ============ FUNGSI SIMPAN CATATAN ============
-    function simpanCatatan() {
+    async function simpanCatatan() {
       // Ambil data dari form
       const kelas = document.getElementById('catatanKelas').value;
       const nis = document.getElementById('catatanSiswa').value;
@@ -4352,7 +4353,6 @@
       const elemenId = document.getElementById('catatanElemen').value;
       const poin = document.getElementById('catatanPoin').value;
       const catatan = document.getElementById('catatanIsi').value;
-      const untukOrtu = document.getElementById('catatanUntukOrtu').value;
 
       // Validasi
       if (!kelas || !nis || !tanggal || !dimensi || !elemenId || !catatan) {
@@ -4360,85 +4360,57 @@
         return;
       }
 
-      // Siapkan data untuk dikirim
-      const data = {
-        kelas: kelas,
-        nis: nis,
-        nama: nama,
-        tanggal: tanggal,
-        dimensiId: elemenId,  // Yang dikirim adalah ID elemen
-        poin: poin ? parseInt(poin) : 0,
-        catatan: catatan,
-        untukOrtu: untukOrtu,
-        diisiOleh: App.user.profil.email
-      };
-
       toggleButtonLoading('button[onclick="simpanCatatan()"]', true, '⏳ Menyimpan...');
-
-      // Panggil backend
-      google.script.run
-        .withSuccessHandler(function (r) {
-          toggleButtonLoading('button[onclick="simpanCatatan()"]', false);
-          if (r.success) {
-            showSuccess('Catatan berhasil disimpan');
-            // Reset form
-            document.getElementById('catatanElemen').value = '';
-            document.getElementById('catatanPoin').value = '0';
-            document.getElementById('catatanIsi').value = '';
-            window.prefetchCatatan = {};
-          } else {
-            showError(r.error || 'Gagal menyimpan');
-          }
-        })
-        .withFailureHandler(function (e) {
-          toggleButtonLoading('button[onclick="simpanCatatan()"]', false);
-            showError('Gagal: ' + e);
-        })
-        .simpanCatatan(data);
+      try {
+        const { error } = await supaClient.from('catatan').insert([{
+          tanggal: tanggal,
+          kelas: kelas,
+          nis: nis,
+          nama: nama,
+          dimensi_id: elemenId,
+          poin: poin ? parseInt(poin) : 0,
+          catatan: catatan,
+          username_guru: App.user.username
+        }]);
+        toggleButtonLoading('button[onclick="simpanCatatan()"]', false);
+        if (error) throw error;
+        showSuccess('Catatan berhasil disimpan');
+        document.getElementById('catatanElemen').value = '';
+        document.getElementById('catatanPoin').value = '0';
+        document.getElementById('catatanIsi').value = '';
+        loadRiwayatCatatan(1);
+      } catch (e) {
+        toggleButtonLoading('button[onclick="simpanCatatan()"]', false);
+        showError('Gagal: ' + e.message);
+      }
     }
     // ============ FUNGSI RIWAYAT CATATAN ============
     let currentCatatanPage = 1;
     const CATATAN_PER_PAGE = 15;
 
-    function loadRiwayatCatatan(page) {
-      const kelas = document.getElementById('catatanKelas').value || '';
-      const tglAwal = '';
-      const tglAkhir = '';
-
-      window.prefetchCatatan = window.prefetchCatatan || {};
-      
-      if (window.prefetchCatatan[page]) {
-        const r = window.prefetchCatatan[page];
-        tampilkanRiwayatCatatan(r.data, r.total, page);
-        const totalPages = Math.ceil(r.total / CATATAN_PER_PAGE);
-        if (page < totalPages && !window.prefetchCatatan[page + 1]) {
-          google.script.run.withSuccessHandler(res => { if (res.success) window.prefetchCatatan[page + 1] = res; }).getRiwayatCatatanGuru(kelas, tglAwal, tglAkhir, page + 1, CATATAN_PER_PAGE, App.user.profil.email);
-        }
-        return;
-      }
-
+    async function loadRiwayatCatatan(page) {
+      const kelas = document.getElementById('catatanKelas')?.value || '';
+      currentCatatanPage = page;
       showLoading(true);
-
-      google.script.run
-        .withSuccessHandler(function (r) {
-          showLoading(false);
-          if (r.success) {
-            window.prefetchCatatan[page] = r;
-            tampilkanRiwayatCatatan(r.data, r.total, page);
-            const totalPages = Math.ceil(r.total / CATATAN_PER_PAGE);
-            if (page < totalPages && !window.prefetchCatatan[page + 1]) {
-              google.script.run.withSuccessHandler(res => { if (res.success) window.prefetchCatatan[page + 1] = res; }).getRiwayatCatatanGuru(kelas, tglAwal, tglAkhir, page + 1, CATATAN_PER_PAGE, App.user.profil.email);
-            }
-          } else {
-            document.getElementById('catatanRiwayatTable').innerHTML = '<p style="text-align:center; padding:20px; color:red;">Gagal memuat riwayat</p>';
-            document.getElementById('catatanPagination').style.display = 'none';
-          }
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-          showError('Gagal memuat riwayat: ' + e);
-        })
-        .getRiwayatCatatanGuru(kelas, tglAwal, tglAkhir, page, CATATAN_PER_PAGE, App.user.profil.email);
+      try {
+        const from = (page - 1) * CATATAN_PER_PAGE;
+        const to = from + CATATAN_PER_PAGE - 1;
+        let query = supaClient.from('catatan')
+          .select('*', { count: 'exact' })
+          .eq('username_guru', App.user.username)
+          .order('tanggal', { ascending: false })
+          .order('created_at', { ascending: false })
+          .range(from, to);
+        if (kelas) query = query.eq('kelas', kelas);
+        const { data, count, error } = await query;
+        showLoading(false);
+        if (error) throw error;
+        tampilkanRiwayatCatatan(data || [], count || 0, page);
+      } catch (e) {
+        showLoading(false);
+        document.getElementById('catatanRiwayatTable').innerHTML = '<p style="text-align:center; padding:20px; color:red;">Gagal memuat riwayat: ' + e.message + '</p>';
+        document.getElementById('catatanPagination').style.display = 'none';
+      }
     }
     function tampilkanRiwayatCatatan(data, total, currentPage) {
       if (!data || data.length === 0) {
@@ -4452,19 +4424,23 @@
       data.forEach((item, index) => {
         const rowNumber = ((currentPage - 1) * CATATAN_PER_PAGE) + index + 1;
         const poinText = item.poin ? (item.poin > 0 ? `+${item.poin}` : item.poin) : '-';
+        // Resolve dimensi & elemen dari masterDimensi cache
+        const elemenEntry = Object.values(masterDimensi || {}).find(d => String(d.id) === String(item.dimensi_id));
+        const dimensiNama = elemenEntry ? elemenEntry.dimensi : '-';
+        const elemenNama = elemenEntry ? elemenEntry.elemen : '-';
 
         html += '<tr>';
         html += '<td>' + rowNumber + '</td>';
         html += '<td>' + item.tanggal + '</td>';
         html += '<td style="text-align:left">' + item.nama + '</td>';
-        html += '<td>' + (item.dimensi || '-') + '</td>';
-        html += '<td>' + (item.elemen || '-') + '</td>';
+        html += '<td>' + dimensiNama + '</td>';
+        html += '<td>' + elemenNama + '</td>';
         html += '<td>' + poinText + '</td>';
-        html += '<td style="text-align:left">' + item.catatan + '</td>';
-        html += '<td>' + (item.guru || '-') + '</td>';
+        html += '<td style="text-align:left">' + (item.catatan || '-') + '</td>';
+        html += '<td>' + (item.username_guru || '-') + '</td>';
         html += '<td>';
-        html += '<button class="btn btn-warning btn-sm" onclick="editCatatan(\'' + item.id + '\')">✏️</button> ';
-        html += '<button class="btn btn-danger btn-sm" onclick="hapusCatatan(\'' + item.id + '\')">🗑️</button>';
+        html += '<button class="btn btn-warning btn-sm" onclick="editCatatan(\'' + item.id + '\')">' + '✏️</button> ';
+        html += '<button class="btn btn-danger btn-sm" onclick="hapusCatatan(\'' + item.id + '\')">' + '🗑️</button>';
         html += '</td>';
         html += '</tr>';
       });
@@ -4493,25 +4469,21 @@
     // ============ FUNGSI EDIT CATATAN ============
     let currentEditId = null;
 
-    function editCatatan(id) {
+    async function editCatatan(id) {
       currentEditId = id;
-
       showLoading(true);
-
-      google.script.run
-        .withSuccessHandler(function (r) {
-          showLoading(false);
-          if (r.success) {
-            tampilkanModalEdit(r.data);
-          } else {
-            showError(r.error || 'Gagal memuat data');
-          }
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-            showError('Gagal: ' + e);
-        })
-        .getCatatanById(id);
+      try {
+        const { data, error } = await supaClient.from('catatan').select('*').eq('id', id).single();
+        showLoading(false);
+        if (error) throw error;
+        // Resolve nama dimensi dari masterDimensi
+        const elemenEntry = Object.values(masterDimensi || {}).find(d => String(d.id) === String(data.dimensi_id));
+        const dimensiName = elemenEntry ? elemenEntry.dimensi : '';
+        tampilkanModalEdit({ ...data, dimensi: dimensiName, elemenId: data.dimensi_id });
+      } catch (e) {
+        showLoading(false);
+        showError('Gagal memuat data: ' + e.message);
+      }
     }
 
     function tampilkanModalEdit(data) {
@@ -4621,7 +4593,7 @@
       selectElemen.innerHTML = options;
     }
 
-    function simpanEditCatatan() {
+    async function simpanEditCatatan() {
       if (!currentEditId) return;
 
       const dataBaru = {
@@ -4637,47 +4609,38 @@
       }
 
       showLoading(true);
-
-      google.script.run
-        .withSuccessHandler(function (r) {
-          showLoading(false);
-          if (r.success) {
-            showSuccess('Catatan berhasil diupdate');
-            tutupModalEdit();
-            window.prefetchCatatan = {};
-            loadRiwayatCatatan(currentCatatanPage);
-          } else {
-            showError(r.error || 'Gagal mengupdate');
-          }
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-            showError('Gagal: ' + e);
-        })
-        .updateCatatan(currentEditId, dataBaru);
+      try {
+        const { error } = await supaClient.from('catatan').update({
+          tanggal: dataBaru.tanggal,
+          dimensi_id: dataBaru.dimensiId,
+          poin: dataBaru.poin,
+          catatan: dataBaru.catatan
+        }).eq('id', currentEditId);
+        showLoading(false);
+        if (error) throw error;
+        showSuccess('Catatan berhasil diupdate');
+        tutupModalEdit();
+        loadRiwayatCatatan(currentCatatanPage);
+      } catch (e) {
+        showLoading(false);
+        showError('Gagal: ' + e.message);
+      }
     }
 
     // ============ FUNGSI HAPUS CATATAN ============
     function hapusCatatan(id) {
-      showCustomConfirm('Yakin ingin menghapus catatan ini?', function () {
+      showCustomConfirm('Yakin ingin menghapus catatan ini?', async function () {
         showLoading(true);
-
-        google.script.run
-          .withSuccessHandler(function (r) {
-            showLoading(false);
-            if (r.success) {
-              showSuccess('Catatan berhasil dihapus');
-              window.prefetchCatatan = {};
-              loadRiwayatCatatan(currentCatatanPage);
-            } else {
-              showError(r.error || 'Gagal menghapus');
-            }
-          })
-          .withFailureHandler(function (e) {
-            showLoading(false);
-              showError('Gagal: ' + e);
-          })
-          .hapusCatatan(id);
+        try {
+          const { error } = await supaClient.from('catatan').delete().eq('id', id);
+          showLoading(false);
+          if (error) throw error;
+          showSuccess('Catatan berhasil dihapus');
+          loadRiwayatCatatan(currentCatatanPage);
+        } catch (e) {
+          showLoading(false);
+          showError('Gagal: ' + e.message);
+        }
       }, 'danger');
     }
 
@@ -4789,7 +4752,7 @@
     }
 
     // Load daftar siswa berdasarkan kelas
-    function loadSiswaPelanggaran() {
+    async function loadSiswaPelanggaran() {
       const kelas = document.getElementById('pelanggaranKelas').value;
       const siswaSelect = document.getElementById('pelanggaranSiswa');
       const formContainer = document.getElementById('pelanggaranFormContainer');
@@ -4801,53 +4764,43 @@
       }
 
       showLoading(true);
-
-      google.script.run
-        .withSuccessHandler(function (r) {
-          showLoading(false);
-          if (r.success && r.siswa) {
-            siswaSelect.innerHTML = '<option value="">-- Pilih Siswa --</option>';
-            r.siswa.forEach(s => {
-              siswaSelect.innerHTML += `<option value="${s.nis}">${s.nis} - ${s.nama}</option>`;
-            });
-            formContainer.style.display = 'block';
-
-            // Load riwayat untuk kelas ini
-            loadRiwayatPelanggaran(1);
-          } else {
-            siswaSelect.innerHTML = '<option value="">Gagal memuat siswa</option>';
-            formContainer.style.display = 'none';
-          }
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-          showError('Gagal memuat siswa: ' + e);
-        })
-        .getSiswaByKelas(kelas);
+      try {
+        const { data, error } = await supaClient.from('data_siswa')
+          .select('nis, nama').eq('kelas', kelas).order('nama', { ascending: true });
+        showLoading(false);
+        if (error) throw error;
+        siswaSelect.innerHTML = '<option value="">-- Pilih Siswa --</option>';
+        (data || []).forEach(s => {
+          siswaSelect.innerHTML += `<option value="${s.nis}">${s.nis} - ${s.nama}</option>`;
+        });
+        formContainer.style.display = 'block';
+        loadRiwayatPelanggaran(1);
+      } catch (e) {
+        showLoading(false);
+        siswaSelect.innerHTML = '<option value="">Gagal memuat siswa</option>';
+        formContainer.style.display = 'none';
+        showError('Gagal memuat siswa: ' + e.message);
+      }
     }
 
-    // Load master pelanggaran (VERSI BARU - PAKAI GLOBAL)
     // Load master pelanggaran
-    function loadMasterPelanggaran() {
+    async function loadMasterPelanggaran() {
       // Jika data sudah ada di App, langsung render dropdown
       if (App.masterPelanggaran && App.masterPelanggaran.length > 0) {
         renderJenisDropdown(App.masterPelanggaran);
         return;
       }
-
       showLoading(true);
-
-      google.script.run
-        .withSuccessHandler(function (data) {
-          showLoading(false);
-          App.masterPelanggaran = data; // Simpan di App
-          renderJenisDropdown(data);
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-          showError('Gagal memuat master pelanggaran: ' + e);
-        })
-        .getMasterPelanggaran();
+      try {
+        const { data, error } = await supaClient.from('master_pelanggaran').select('*').order('jenis');
+        showLoading(false);
+        if (error) throw error;
+        App.masterPelanggaran = data || [];
+        renderJenisDropdown(data || []);
+      } catch (e) {
+        showLoading(false);
+        showError('Gagal memuat master pelanggaran: ' + e.message);
+      }
     }
 
     // Render dropdown Jenis (unik dari master + opsi manual)
@@ -5011,53 +4964,46 @@
       };
 
       showLoading(true, 'Sedang menyimpan data pelanggaran...');
-
-      // Panggil backend
-      google.script.run
-        .withSuccessHandler(function (r) {
-          showLoading(false);
-          if (r.success) {
-            showSuccess('Pelanggaran berhasil disimpan');
-            // Reset form
-            document.getElementById('pelanggaranJenis').value = '';
-            document.getElementById('pelanggaranPerilaku').innerHTML = '<option value="">-- Pilih Jenis Dulu --</option>';
-            document.getElementById('pelanggaranPoin').value = '0';
-            document.getElementById('pelanggaranTindakLanjut').value = '';
-            // Reload riwayat
-            window.prefetchPelanggaran = {};
-            loadRiwayatPelanggaran(1);
-          } else {
-            showError(r.error || 'Gagal menyimpan');
-          }
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-            showError('Gagal: ' + e);
-        })
-        .simpanPelanggaran(data);
+      try {
+        const { error } = await supaClient.from('pelanggaran').insert([{
+          tanggal: data.tanggal,
+          kelas: data.kelas,
+          nis: data.nis,
+          nama: data.nama,
+          jenis: data.jenis,
+          perilaku: data.perilaku,
+          poin: data.poin,
+          tindak_lanjut: data.tindakLanjut,
+          username_guru: App.user.username
+        }]);
+        showLoading(false);
+        if (error) throw error;
+        showSuccess('Pelanggaran berhasil disimpan');
+        document.getElementById('pelanggaranJenis').value = '';
+        document.getElementById('pelanggaranPerilaku').innerHTML = '<option value="">-- Pilih Jenis Dulu --</option>';
+        document.getElementById('pelanggaranPoin').value = '0';
+        document.getElementById('pelanggaranTindakLanjut').value = '';
+        loadRiwayatPelanggaran(1);
+      } catch (e) {
+        showLoading(false);
+        showError('Gagal: ' + e.message);
+      }
     }
     // ============ FUNGSI EDIT PELANGGARAN ============
     let currentEditPelanggaranId = null;
 
-    function editPelanggaran(id) {
+    async function editPelanggaran(id) {
       currentEditPelanggaranId = id;
-
       showLoading(true);
-
-      google.script.run
-        .withSuccessHandler(function (r) {
-          showLoading(false);
-          if (r.success) {
-            tampilkanModalEditPelanggaran(r.data);
-          } else {
-            showError(r.error || 'Gagal memuat data');
-          }
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-            showError('Gagal: ' + e);
-        })
-        .getPelanggaranById(id);
+      try {
+        const { data, error } = await supaClient.from('pelanggaran').select('*').eq('id', id).single();
+        showLoading(false);
+        if (error) throw error;
+        tampilkanModalEditPelanggaran({ ...data, tindakLanjut: data.tindak_lanjut });
+      } catch (e) {
+        showLoading(false);
+        showError('Gagal memuat data: ' + e.message);
+      }
     }
     //MODAL EDIT PELANGGARAN//
     function tampilkanModalEditPelanggaran(data) {
@@ -5151,7 +5097,7 @@
       selectPerilaku.innerHTML = options;
     }
     //FUNGSI EDIT PELANGGARAN//
-    function simpanEditPelanggaran() {
+    async function simpanEditPelanggaran() {
       if (!currentEditPelanggaranId) return;
 
       const dataBaru = {
@@ -5168,90 +5114,69 @@
       }
 
       showLoading(true);
-
-      google.script.run
-        .withSuccessHandler(function (r) {
-          showLoading(false);
-          if (r.success) {
-            showSuccess('Pelanggaran berhasil diupdate');
-            tutupModalEditPelanggaran();
-            window.prefetchPelanggaran = {};
-            loadRiwayatPelanggaran(currentPelanggaranPage);
-          } else {
-            showError(r.error || 'Gagal mengupdate');
-          }
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-            showError('Gagal: ' + e);
-        })
-        .updatePelanggaran(currentEditPelanggaranId, dataBaru);
+      try {
+        const { error } = await supaClient.from('pelanggaran').update({
+          tanggal: dataBaru.tanggal,
+          jenis: dataBaru.jenis,
+          perilaku: dataBaru.perilaku,
+          poin: parseInt(dataBaru.poin) || 0,
+          tindak_lanjut: dataBaru.tindakLanjut
+        }).eq('id', currentEditPelanggaranId);
+        showLoading(false);
+        if (error) throw error;
+        showSuccess('Pelanggaran berhasil diupdate');
+        tutupModalEditPelanggaran();
+        loadRiwayatPelanggaran(currentPelanggaranPage);
+      } catch (e) {
+        showLoading(false);
+        showError('Gagal: ' + e.message);
+      }
     }
     //FUNGSI HAPUS PELANGGARAN//
     function hapusPelanggaran(id) {
-      showCustomConfirm('Yakin ingin menghapus pelanggaran ini?', function () {
+      showCustomConfirm('Yakin ingin menghapus pelanggaran ini?', async function () {
         showLoading(true);
-
-        google.script.run
-          .withSuccessHandler(function (r) {
-            showLoading(false);
-            if (r.success) {
-              showSuccess('Pelanggaran berhasil dihapus');
-              window.prefetchPelanggaran = {};
-              loadRiwayatPelanggaran(currentPelanggaranPage);
-            } else {
-              showError(r.error || 'Gagal menghapus');
-            }
-          })
-          .withFailureHandler(function (e) {
-            showLoading(false);
-              showError('Gagal: ' + e);
-          })
-          .hapusPelanggaran(id);
+        try {
+          const { error } = await supaClient.from('pelanggaran').delete().eq('id', id);
+          showLoading(false);
+          if (error) throw error;
+          showSuccess('Pelanggaran berhasil dihapus');
+          loadRiwayatPelanggaran(currentPelanggaranPage);
+        } catch (e) {
+          showLoading(false);
+          showError('Gagal: ' + e.message);
+        }
       }, 'danger');
     }
 
 
     // ============ FUNGSI RIWAYAT PELANGGARAN ============
-    function loadRiwayatPelanggaran(page) {
-      const kelas = document.getElementById('pelanggaranKelas').value || '';
-      const tglAwal = '';
-      const tglAkhir = '';
+    let currentPelanggaranPage = 1;
 
-      window.prefetchPelanggaran = window.prefetchPelanggaran || {};
-      
-      if (window.prefetchPelanggaran[page]) {
-        const r = window.prefetchPelanggaran[page];
-        tampilkanRiwayatPelanggaran(r.data, r.total, page);
-        const totalPages = Math.ceil(r.total / App.PELANGGARAN_PER_PAGE);
-        if (page < totalPages && !window.prefetchPelanggaran[page + 1]) {
-          google.script.run.withSuccessHandler(res => { if (res.success) window.prefetchPelanggaran[page + 1] = res; }).getRiwayatPelanggaranGuru(kelas, tglAwal, tglAkhir, page + 1, App.PELANGGARAN_PER_PAGE, App.user.profil.email);
-        }
-        return;
-      }
-
+    async function loadRiwayatPelanggaran(page) {
+      const kelas = document.getElementById('pelanggaranKelas')?.value || '';
+      currentPelanggaranPage = page;
       showLoading(true);
-
-      google.script.run
-        .withSuccessHandler(function (r) {
-          showLoading(false);
-          if (r.success) {
-            window.prefetchPelanggaran[page] = r;
-            tampilkanRiwayatPelanggaran(r.data, r.total, page);
-            const totalPages = Math.ceil(r.total / App.PELANGGARAN_PER_PAGE);
-            if (page < totalPages && !window.prefetchPelanggaran[page + 1]) {
-              google.script.run.withSuccessHandler(res => { if (res.success) window.prefetchPelanggaran[page + 1] = res; }).getRiwayatPelanggaranGuru(kelas, tglAwal, tglAkhir, page + 1, App.PELANGGARAN_PER_PAGE, App.user.profil.email);
-            }
-          } else {
-            document.getElementById('pelanggaranRiwayatTable').innerHTML = '<p style="text-align:center; padding:20px; color:red;">Gagal memuat riwayat</p>';
-            document.getElementById('pelanggaranPagination').style.display = 'none';
-          }
-        })
-        .withFailureHandler(function (e) {
-          showLoading(false);
-          showError('Gagal memuat riwayat: ' + e);
-        })
-        .getRiwayatPelanggaranGuru(kelas, tglAwal, tglAkhir, page, App.PELANGGARAN_PER_PAGE, App.user.profil.email);  // ← PAKAI App!
+      try {
+        const PER_PAGE = App.PELANGGARAN_PER_PAGE || 15;
+        const from = (page - 1) * PER_PAGE;
+        const to = from + PER_PAGE - 1;
+        let query = supaClient.from('pelanggaran')
+          .select('*', { count: 'exact' })
+          .eq('username_guru', App.user.username)
+          .order('tanggal', { ascending: false })
+          .order('created_at', { ascending: false })
+          .range(from, to);
+        if (kelas) query = query.eq('kelas', kelas);
+        const { data, count, error } = await query;
+        showLoading(false);
+        if (error) throw error;
+        tampilkanRiwayatPelanggaran(data || [], count || 0, page);
+      } catch (e) {
+        showLoading(false);
+        document.getElementById('pelanggaranRiwayatTable').innerHTML = '<p style="text-align:center; padding:20px; color:red;">Gagal memuat riwayat: ' + e.message + '</p>';
+        document.getElementById('pelanggaranPagination').style.display = 'none';
+      }
     }
 
     function tampilkanRiwayatPelanggaran(data, total, currentPage) {
@@ -5264,20 +5189,20 @@
       let html = '<table><thead><tr><th>No</th><th>Tanggal</th><th>Nama Siswa</th><th>Jenis</th><th>Perilaku</th><th>Poin</th><th>Tindak Lanjut</th><th>Diinput Oleh</th><th>Aksi</th></tr></thead><tbody>';
 
       data.forEach((item, index) => {
-        const rowNumber = ((currentPage - 1) * App.PELANGGARAN_PER_PAGE) + index + 1;
+        const rowNumber = ((currentPage - 1) * (App.PELANGGARAN_PER_PAGE || 15)) + index + 1;
 
         html += '<tr>';
         html += '<td>' + rowNumber + '</td>';
         html += '<td>' + item.tanggal + '</td>';
         html += '<td style="text-align:left">' + item.nama + '</td>';
-        html += '<td>' + item.jenis + '</td>';
-        html += '<td style="text-align:left">' + item.perilaku + '</td>';
+        html += '<td>' + (item.jenis || '-') + '</td>';
+        html += '<td style="text-align:left">' + (item.perilaku || '-') + '</td>';
         html += '<td>' + item.poin + '</td>';
-        html += '<td style="text-align:left">' + (item.tindakLanjut || '-') + '</td>';
-        html += '<td>' + (item.guru || '-') + '</td>';
+        html += '<td style="text-align:left">' + (item.tindak_lanjut || '-') + '</td>';
+        html += '<td>' + (item.username_guru || '-') + '</td>';
         html += '<td>';
-        html += '<button class="btn btn-warning btn-sm" onclick="editPelanggaran(\'' + item.id + '\')">✏️</button> ';
-        html += '<button class="btn btn-danger btn-sm" onclick="hapusPelanggaran(\'' + item.id + '\')">🗑️</button>';
+        html += '<button class="btn btn-warning btn-sm" onclick="editPelanggaran(\'' + item.id + '\')">' + '✏️</button> ';
+        html += '<button class="btn btn-danger btn-sm" onclick="hapusPelanggaran(\'' + item.id + '\')">' + '🗑️</button>';
         html += '</td>';
         html += '</tr>';
       });
