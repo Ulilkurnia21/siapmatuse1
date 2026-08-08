@@ -2657,24 +2657,18 @@
         return;
       }
 
-      // Tanggal shalat = tanggal absen - 1 hari
-      const tglDate    = new Date(tanggal);
-      const tglKemarin = new Date(tglDate);
-      tglKemarin.setDate(tglKemarin.getDate() - 1);
-      const tglKemarinStr = tglKemarin.toISOString().split('T')[0];
-
       const isMC = !KELAS_REGULER.includes(kelas);
 
       fetchSiswaCache(kelas, isMC, async function (r) {
         if (r.success) {
-          // Pre-fill data shalat kemarin (opsional, abaikan error)
+          // Pre-fill data shalat (opsional, abaikan error)
           let dataShalat = {};
           try {
             const { data: sd } = await supaClient
               .from('shalat')
               .select('nis, status, jumlah')
               .eq('kelas', kelas)
-              .eq('tanggal', tglKemarinStr);
+              .eq('tanggal', tanggal);
             if (sd) sd.forEach(d => { dataShalat[d.nis] = d; });
           } catch (e) { /* opsional */ }
 
@@ -2798,12 +2792,6 @@
       }
       if (!validateAllStatus()) return;
 
-      // Tanggal shalat = tanggal absen - 1 hari
-      const tglAbsen  = new Date(tanggal);
-      const tglShalat = new Date(tglAbsen);
-      tglShalat.setDate(tglShalat.getDate() - 1);
-      const tglShalatStr = tglShalat.toISOString().split('T')[0];
-
       const rows      = document.querySelectorAll('#absenTbody tr');
       const dataAbsen = [];
       const dataShalat = [];
@@ -2816,8 +2804,22 @@
 
         // Shalat — opsional
         const shalatSt  = document.getElementById(`shalat_st_${nis}`)?.value || '';
-        const shalatJml = parseInt(document.getElementById(`shalat_jml_${nis}`)?.value || '0');
-        if (shalatSt) dataShalat.push({ nis, nama, shalatSt, shalatJml });
+        const shalatJmlRaw = document.getElementById(`shalat_jml_${nis}`)?.value;
+        let shalatJml = 0;
+        if (shalatJmlRaw && shalatJmlRaw !== '') {
+          shalatJml = parseInt(shalatJmlRaw);
+        }
+        
+        // Simpan shalat jika status ATAU jumlah diisi
+        if (shalatSt || (shalatJmlRaw && shalatJmlRaw !== '')) {
+          dataShalat.push({
+            nis, nama, kelas,
+            tanggal: tanggal,
+            status: shalatSt || null,
+            jumlah: shalatJml,
+            username_guru: App.user.username
+          });
+        }
       });
 
       confirmAction(`Simpan ${dataAbsen.length} data absensi?`, async function () {
@@ -2829,24 +2831,18 @@
         }));
 
         try {
-          const { error: absenErr } = await supaClient.from('absensi').insert(absensiData);
+          const { error: absenErr } = await supaClient.from('absensi').upsert(absensiData, { onConflict: 'nis,tanggal,mapel,jam' });
           if (absenErr) throw absenErr;
 
           if (dataShalat.length > 0) {
-            const shalatData = dataShalat.map(d => ({
-              nis: d.nis, nama: d.nama, kelas,
-              tanggal: tglShalatStr,
-              status: d.shalatSt, jumlah: d.shalatJml,
-              username_guru: App.user.username
-            }));
             const { error: shErr } = await supaClient
               .from('shalat')
-              .upsert(shalatData, { onConflict: 'nis,tanggal,kelas' });
+              .upsert(dataShalat, { onConflict: 'nis,tanggal,kelas' });
             if (shErr) console.warn('Shalat save warn:', shErr.message);
           }
 
           toggleButtonLoading('button[onclick="simpanAbsensi()"]', false);
-          const shalatMsg = dataShalat.length > 0 ? `, ${dataShalat.length} data shalat (tgl ${tglShalatStr})` : '';
+          const shalatMsg = dataShalat.length > 0 ? `, ${dataShalat.length} data shalat` : '';
           showSuccess(`${dataAbsen.length} data absensi tersimpan${shalatMsg}`);
           document.getElementById('absenContainer').style.display = 'none';
         } catch (err) {
@@ -2872,11 +2868,6 @@
         return;
       }
 
-      const tglAbsenDate  = new Date(tanggal);
-      const tglShalatDate = new Date(tglAbsenDate);
-      tglShalatDate.setDate(tglShalatDate.getDate() - 1);
-      const tglShalatStr = tglShalatDate.toISOString().split('T')[0];
-
       toggleButtonLoading('button[onclick="loadDataForEdit()"]', true, '⏳ Memuat...');
 
       Promise.all([
@@ -2889,7 +2880,7 @@
         supaClient.from('shalat')
           .select('nis, status, jumlah')
           .eq('kelas', kelas)
-          .eq('tanggal', tglShalatStr)
+          .eq('tanggal', tanggal)
       ]).then(([absenRes, shalatRes]) => {
         if (absenRes.error) {
           toggleButtonLoading('button[onclick="loadDataForEdit()"]', false);
@@ -2923,108 +2914,82 @@
           if (r.success) {
             const el = document.getElementById('editContainer');
             el.setAttribute('data-mapel', mapel);
-            el.setAttribute('data-tgl-shalat', tglShalatStr);
-            displayDataForEdit(r.siswa, existingStatus, mapel, existingShalat);
             el.style.display = 'block';
+            displaySiswaForEdit(r.siswa, existingStatus, existingShalat);
           } else {
-            showError(r.error || 'Gagal memuat data siswa');
+            showError('Gagal memuat siswa');
           }
         });
       });
     }
 
-    function displayDataForEdit(siswa, existingStatus, mapel, existingShalat) {
+    function displaySiswaForEdit(siswa, existingStatus, existingShalat) {
       existingShalat = existingShalat || {};
+      const tbody = document.getElementById('editTbody');
       let html = '';
+      siswa.forEach((s, index) => {
+        const val = existingStatus[s.nis] || '';
+        const stH = (val === 'H') ? 'selected' : '';
+        const stA = (val === 'A') ? 'selected' : '';
+        const stS = (val === 'S') ? 'selected' : '';
+        const stI = (val === 'I') ? 'selected' : '';
+        const stC = (val === 'C') ? 'selected' : '';
+        const stT = (val === 'T') ? 'selected' : '';
+        const requiredLabel = val ? '' : 'style="border:2px solid red"';
 
-      siswa.forEach((s, i) => {
-        const statusTerisi = existingStatus[s.nis] || '';
-        const shalatSt     = existingShalat[s.nis]?.status || '';
-        const shalatJml    = existingShalat[s.nis]?.jumlah ?? 0;
-        const jmlOpts      = [0,1,2,3,4,5].map(n =>
-          `<option value="${n}" ${shalatJml === n ? 'selected' : ''}>${n}</option>`).join('');
+        const shalat = existingShalat[s.nis] || { status: '', jumlah: 0 };
+        const shalatVal = shalat.status || '';
+        const shY = (shalatVal === 'Y') ? 'selected' : '';
+        const shT = (shalatVal === 'T') ? 'selected' : '';
+        const sh_H = (shalatVal === 'H') ? 'selected' : '';
 
-        const hChecked = statusTerisi === 'H' ? 'checked' : '';
-        const sChecked = statusTerisi === 'S' ? 'checked' : '';
-        const iChecked = statusTerisi === 'I' ? 'checked' : '';
-        const aChecked = statusTerisi === 'A' ? 'checked' : '';
-        const tChecked = statusTerisi === 'T' ? 'checked' : '';
-        const cChecked = statusTerisi === 'C' ? 'checked' : '';
+        const shalatJml = shalat.jumlah || 0;
+        let jmlOptions = '';
+        for (let i = 0; i <= 5; i++) {
+          const sel = (i === shalatJml) ? 'selected' : '';
+          jmlOptions += `<option value="${i}" ${sel}>${i}</option>`;
+        }
 
         html += `
           <tr>
-            <td>${i + 1}</td>
+            <td>${index + 1}</td>
             <td>${s.nis}</td>
-            <td style="text-align:left; white-space:normal; word-wrap:break-word;">${s.nama}</td>
-            <td colspan="6">
-              <div class="radio-group">
-                <div class="radio-item">
-                  <input type="radio" name="edit_status_${s.nis}" value="H" onchange="setEditStatus('${s.nis}','H')" ${hChecked}>
-                  <span class="radio-label h">H</span>
-                </div>
-                <div class="radio-item">
-                  <input type="radio" name="edit_status_${s.nis}" value="S" onchange="setEditStatus('${s.nis}','S')" ${sChecked}>
-                  <span class="radio-label s">S</span>
-                </div>
-                <div class="radio-item">
-                  <input type="radio" name="edit_status_${s.nis}" value="I" onchange="setEditStatus('${s.nis}','I')" ${iChecked}>
-                  <span class="radio-label i">I</span>
-                </div>
-                <div class="radio-item">
-                  <input type="radio" name="edit_status_${s.nis}" value="A" onchange="setEditStatus('${s.nis}','A')" ${aChecked}>
-                  <span class="radio-label a">A</span>
-                </div>
-                <div class="radio-item">
-                  <input type="radio" name="edit_status_${s.nis}" value="T" onchange="setEditStatus('${s.nis}','T')" ${tChecked}>
-                  <span class="radio-label t">T</span>
-                </div>
-                <div class="radio-item">
-                  <input type="radio" name="edit_status_${s.nis}" value="C" onchange="setEditStatus('${s.nis}','C')" ${cChecked}>
-                  <span class="radio-label c">C</span>
-                </div>
-              </div>
-              <input type="hidden" id="edit_st_${s.nis}" value="${statusTerisi}">
-              <!-- Baris Shalat Kemarin (opsional) -->
-              <div class="shalat-row" style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:5px;border-top:1px dashed #b39ddb;flex-wrap:wrap;">
-                <span style="font-size:11px;color:#7e57c2;font-weight:bold;">🕌 Kmrn:</span>
-                <select id="edit_shalat_jml_${s.nis}" style="padding:2px 4px;font-size:12px;border-radius:4px;border:1px solid #b39ddb;width:50px;">${jmlOpts}</select>
-                <label style="display:flex;align-items:center;gap:2px;cursor:pointer;font-size:12px;">
-                  <input type="radio" name="edit_shalat_${s.nis}" value="Y" onchange="setEditShalatStatus('${s.nis}','Y')" ${shalatSt==='Y'?'checked':''}>
-                  <span style="color:#2e7d32;font-weight:bold;">Y</span>
-                </label>
-                <label style="display:flex;align-items:center;gap:2px;cursor:pointer;font-size:12px;">
-                  <input type="radio" name="edit_shalat_${s.nis}" value="T" onchange="setEditShalatStatus('${s.nis}','T')" ${shalatSt==='T'?'checked':''}>
-                  <span style="color:#c62828;font-weight:bold;">T</span>
-                </label>
-                <label style="display:flex;align-items:center;gap:2px;cursor:pointer;font-size:12px;">
-                  <input type="radio" name="edit_shalat_${s.nis}" value="H" onchange="setEditShalatStatus('${s.nis}','H')" ${shalatSt==='H'?'checked':''}>
-                  <span style="color:#ff9800;font-weight:bold;">H</span>
-                </label>
-                <input type="hidden" id="edit_shalat_st_${s.nis}" value="${shalatSt}">
-              </div>
+            <td style="text-align:left; font-weight:bold;">${s.nama}</td>
+            <td>
+              <select id="edit_st_${s.nis}" ${requiredLabel}>
+                <option value="">- Pilih -</option>
+                <option value="H" ${stH}>H - Hadir</option>
+                <option value="A" ${stA}>A - Alpa</option>
+                <option value="S" ${stS}>S - Sakit</option>
+                <option value="I" ${stI}>I - Izin</option>
+                <option value="C" ${stC}>C - Cabut</option>
+                <option value="T" ${stT}>T - Terlambat</option>
+              </select>
+            </td>
+            <td>
+              <select id="edit_shalat_st_${s.nis}">
+                <option value="">--</option>
+                <option value="Y" ${shY}>Y</option>
+                <option value="T" ${shT}>T</option>
+                <option value="H" ${sh_H}>H</option>
+              </select>
+            </td>
+            <td>
+              <select id="edit_shalat_jml_${s.nis}">
+                ${jmlOptions}
+              </select>
             </td>
           </tr>
         `;
       });
-
-      document.getElementById('editTbody').innerHTML = html;
-      document.getElementById('editContainer').setAttribute('data-mapel', mapel);
-    }
-
-    function setEditShalatStatus(nis, status) {
-      document.getElementById(`edit_shalat_st_${nis}`).value = status;
-    }
-
-    function setEditStatus(nis, status) {
-      document.getElementById(`edit_st_${nis}`).value = status;
+      tbody.innerHTML = html;
     }
 
     async function updateAbsensi() {
-      const kelas        = document.getElementById('editKelas').value;
-      const tanggal      = document.getElementById('editTanggal').value;
-      const jam          = document.getElementById('editJam').value;
-      const mapel        = document.getElementById('editContainer').getAttribute('data-mapel');
-      const tglShalatStr = document.getElementById('editContainer').getAttribute('data-tgl-shalat');
+      const kelas   = document.getElementById('editKelas').value;
+      const tanggal = document.getElementById('editTanggal').value;
+      const jam     = document.getElementById('editJam').value;
+      const mapel   = document.getElementById('editContainer').getAttribute('data-mapel');
 
       if (!kelas || !tanggal || !jam || !mapel) {
         showError('Data tidak lengkap');
@@ -3042,8 +3007,21 @@
         if (status && status.trim() !== '') dataAbsen.push({ nis, nama, status });
 
         const shalatSt  = document.getElementById(`edit_shalat_st_${nis}`)?.value || '';
-        const shalatJml = parseInt(document.getElementById(`edit_shalat_jml_${nis}`)?.value || '0');
-        if (shalatSt && tglShalatStr) dataShalat.push({ nis, nama, shalatSt, shalatJml });
+        const shalatJmlRaw = document.getElementById(`edit_shalat_jml_${nis}`)?.value;
+        let shalatJml = 0;
+        if (shalatJmlRaw && shalatJmlRaw !== '') {
+          shalatJml = parseInt(shalatJmlRaw);
+        }
+
+        if (shalatSt || (shalatJmlRaw && shalatJmlRaw !== '')) {
+          dataShalat.push({
+            nis, nama, kelas,
+            tanggal: tanggal,
+            status: shalatSt || null,
+            jumlah: shalatJml,
+            username_guru: App.user.username
+          });
+        }
       });
 
       if (dataAbsen.length === 0) {
@@ -3069,14 +3047,8 @@
           const { error: insErr } = await supaClient.from('absensi').insert(absensiData);
           if (insErr) throw insErr;
 
-          if (dataShalat.length > 0 && tglShalatStr) {
-            const shalatData = dataShalat.map(d => ({
-              nis: d.nis, nama: d.nama, kelas,
-              tanggal: tglShalatStr,
-              status: d.shalatSt, jumlah: d.shalatJml,
-              username_guru: App.user.username
-            }));
-            await supaClient.from('shalat').upsert(shalatData, { onConflict: 'nis,tanggal,kelas' });
+          if (dataShalat.length > 0) {
+            await supaClient.from('shalat').upsert(dataShalat, { onConflict: 'nis,tanggal,kelas' });
           }
 
           toggleButtonLoading('button[onclick="updateAbsensi()"]', false);
@@ -7648,7 +7620,7 @@
   <!-- =================================================== -->
 
   <?!= include("App"); ?>
-  <script src="Laporan.js?v=4"></script>
+  <script src="Laporan.js?v=5"></script>
   <script src="DashboardPimpinan.js?v=2"></script>
 
 </body>
