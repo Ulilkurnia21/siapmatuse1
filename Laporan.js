@@ -1001,9 +1001,9 @@ async function updateLaporanNilaiFilter() {
               <th rowspan="2" style="width:80px;">NIS</th>
               <th rowspan="2">NAMA SISWA</th>
               <th colspan="3">PELAKSANAAN SHALAT</th>
-              <th rowspan="2" class="rekap-col" style="width:70px;">TOTAL HARI</th>
-              <th rowspan="2" class="rekap-col" style="width:80px;">TOTAL RAKAAT / SHALAT</th>
-              <th rowspan="2" class="rekap-col" style="width:90px;">RATA-RATA (Mulai 10 Agt)</th>
+              <th rowspan="2" style="width:70px;">TOTAL HARI</th>
+              <th rowspan="2" style="width:80px;">TOTAL SHALAT</th>
+              <th rowspan="2" style="width:90px;">RATA-RATA</th>
             </tr>
             <tr>
               <th style="width:50px;">Ya (Y)</th>
@@ -1017,7 +1017,8 @@ async function updateLaporanNilaiFilter() {
       siswaData.forEach((s, idx) => {
         const d = rekap[s.nis];
         const total = d.Y + d.T + d.H;
-        const rataRata = d.hariAdaSejakAgustus > 0 ? (d.totalJmlSejakAgustus / d.hariAdaSejakAgustus).toFixed(1) : 'Belum ada data';
+        const rataRata = d.hariAdaSejakAgustus > 0 ? Math.round(d.totalJmlSejakAgustus / d.hariAdaSejakAgustus) : 'Belum ada data';
+        const totalJmlDisplay = d.hariAdaSejakAgustus > 0 ? d.totalJmlSejakAgustus : 'Belum ada data';
         
         html += `
           <tr>
@@ -1028,7 +1029,7 @@ async function updateLaporanNilaiFilter() {
             <td>${d.T}</td>
             <td>${d.H}</td>
             <td class="rekap-col">${total}</td>
-            <td class="rekap-col">${d.totalJml}</td>
+            <td class="rekap-col">${totalJmlDisplay}</td>
             <td class="rekap-col">${rataRata}</td>
           </tr>
         `;
@@ -1039,7 +1040,7 @@ async function updateLaporanNilaiFilter() {
         </table>
         
         <div class="ttd">
-          Padang, ${new Date().getDate()} ${mNama} ${new Date().getFullYear()}<br>
+          Silayang, ${new Date().getDate()} ${mNama} ${new Date().getFullYear()}<br>
           Wali Kelas<br>
           <div></div>
           <b><u>${namaWali}</u></b><br>
