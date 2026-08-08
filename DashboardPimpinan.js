@@ -854,15 +854,20 @@ async function renderPimpinanAktivitas(forceRefresh = false) {
 
   try {
     const { data: jurnalList, error } = await supaClient
-      .from('jurnal_guru')
-      .select('nama_guru, tanggal');
+      .from('jurnal')
+      .select('username_guru, tanggal');
 
     if (error) throw error;
+    
+    // Tarik data guru untuk mapping nama
+    const { data: guruData } = await supaClient.from('data_guru').select('username, nama');
+    const guruMap = {};
+    if (guruData) guruData.forEach(g => { guruMap[g.username] = g.nama; });
 
     const now = new Date();
     
-    // Konversi ke UTC+7 (WIB) untuk mendapatkan tanggal lokal yang akurat
-    const tzOffset = 7 * 60; // 7 jam dalam menit
+    // Konversi ke UTC+7 (WIB)
+    const tzOffset = 7 * 60; 
     const localTime = new Date(now.getTime() + (tzOffset + now.getTimezoneOffset()) * 60000);
     
     const today = localTime.toISOString().split('T')[0];
@@ -882,7 +887,7 @@ async function renderPimpinanAktivitas(forceRefresh = false) {
     const summaryMap = {};
 
     jurnalList.forEach(j => {
-      const guru = j.nama_guru || 'Unknown';
+      const guru = guruMap[j.username_guru] || j.username_guru || 'Unknown';
       if (!summaryMap[guru]) {
         summaryMap[guru] = { nama: guru, hariIni: 0, mingguIni: 0, bulanIni: 0, total: 0 };
       }
@@ -969,7 +974,7 @@ async function renderPimpinanShalat(forceRefresh = false) {
 
   try {
     const { data: shalatList, error } = await supaClient
-      .from('absensi_shalat')
+      .from('shalat')
       .select('nis, tanggal, status');
 
     if (error) throw error;
@@ -1126,9 +1131,8 @@ async function renderPimpinanPelanggaran(forceRefresh = false) {
 
   try {
     const { data, error } = await supaClient
-      .from('catatan_sikap')
-      .select('nis, nama, kelas, poin')
-      .lt('poin', 0); // Ambil yang negatif (pelanggaran)
+      .from('pelanggaran')
+      .select('nis, nama, kelas, poin'); // Biasanya poinnya disimpan sbg positif, jadi tidak usah .lt(0) kecuali memang negatif
 
     if (error) throw error;
 
@@ -1213,9 +1217,8 @@ async function renderPimpinanSikap(forceRefresh = false) {
 
   try {
     const { data, error } = await supaClient
-      .from('catatan_sikap')
-      .select('nis, nama, kelas, poin')
-      .gt('poin', 0); // Ambil yang positif
+      .from('catatan')
+      .select('nis, nama, kelas, poin'); // Asumsi semua yg masuk tabel catatan adalah poin positif
 
     if (error) throw error;
 
@@ -1225,7 +1228,7 @@ async function renderPimpinanSikap(forceRefresh = false) {
       if (!summaryMap[row.nis]) {
         summaryMap[row.nis] = { nama: row.nama, kelas: row.kelas, totalPoin: 0 };
       }
-      summaryMap[row.nis].totalPoin += poin;
+      summaryMap[row.nis].totalPoin += Math.abs(poin);
     });
 
     const top10 = Object.values(summaryMap)
@@ -1319,32 +1322,44 @@ async function renderPimpinanBobot(forceRefresh = false) {
   showLoading(true, 'Memuat Data Bobot Siswa...');
 
   try {
-    const { data, error } = await supaClient
-      .from('catatan_sikap')
+    const { data: catatanData, error: errCatatan } = await supaClient
+      .from('catatan')
       .select('nis, nama, kelas, poin, tanggal')
       .eq('kelas', kelas);
 
-    if (error) throw error;
+    if (errCatatan) throw errCatatan;
+
+    const { data: pelanggaranData, error: errPelanggaran } = await supaClient
+      .from('pelanggaran')
+      .select('nis, nama, kelas, poin, tanggal')
+      .eq('kelas', kelas);
+
+    if (errPelanggaran) throw errPelanggaran;
     
-    // Filter berdasarkan bulan
-    const filteredData = (data || []).filter(item => {
-      if (!item.tanggal) return false;
+    const summaryMap = {};
+
+    // Filter & Proses Catatan Positif
+    (catatanData || []).forEach(item => {
+      if (!item.tanggal) return;
       const [y, m, d] = item.tanggal.split('-');
-      if (bulan !== 'ALL' && parseInt(m) !== parseInt(bulan)) return false;
-      return true;
+      if (bulan !== 'ALL' && parseInt(m) !== parseInt(bulan)) return;
+
+      if (!summaryMap[item.nis]) {
+        summaryMap[item.nis] = { nama: item.nama, kelas: item.kelas, positif: 0, pelanggaran: 0, totalBobot: 0 };
+      }
+      summaryMap[item.nis].positif += Math.abs(parseInt(item.poin) || 0);
     });
 
-    const summaryMap = {};
-    filteredData.forEach(row => {
-      if (!summaryMap[row.nis]) {
-        summaryMap[row.nis] = { nama: row.nama, kelas: row.kelas, positif: 0, pelanggaran: 0, totalBobot: 0 };
+    // Filter & Proses Pelanggaran
+    (pelanggaranData || []).forEach(item => {
+      if (!item.tanggal) return;
+      const [y, m, d] = item.tanggal.split('-');
+      if (bulan !== 'ALL' && parseInt(m) !== parseInt(bulan)) return;
+
+      if (!summaryMap[item.nis]) {
+        summaryMap[item.nis] = { nama: item.nama, kelas: item.kelas, positif: 0, pelanggaran: 0, totalBobot: 0 };
       }
-      const poin = parseInt(row.poin) || 0;
-      if (poin > 0) {
-        summaryMap[row.nis].positif += poin;
-      } else if (poin < 0) {
-        summaryMap[row.nis].pelanggaran += Math.abs(poin);
-      }
+      summaryMap[item.nis].pelanggaran += Math.abs(parseInt(item.poin) || 0);
     });
 
     Object.values(summaryMap).forEach(s => {
