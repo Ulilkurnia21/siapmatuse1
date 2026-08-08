@@ -831,7 +831,7 @@ function tampilkanPimpinanBeranda(res) {
   }
 }
 
-function renderPimpinanAktivitas(forceRefresh = false) {
+async function renderPimpinanAktivitas(forceRefresh = false) {
   if (forceRefresh !== true) {
     const cached = AppCache.get('cache_pimpinan_aktivitas');
     if (cached) {
@@ -842,21 +842,66 @@ function renderPimpinanAktivitas(forceRefresh = false) {
 
   showLoading(true, 'Memuat Data Aktivitas Guru (Jurnal)...');
 
-  google.script.run
-    .withSuccessHandler(function (r) {
-      showLoading(false);
-      if (r.success) {
-        AppCache.set('cache_pimpinan_aktivitas', r.data, 10);
-        tampilkanPimpinanAktivitas(r.data);
-      } else {
-        showError('Gagal memuat aktivitas guru: ' + r.error);
+  try {
+    const { data: jurnalList, error } = await supaClient
+      .from('jurnal_guru')
+      .select('nama_guru, tanggal');
+
+    if (error) throw error;
+
+    const now = new Date();
+    
+    // Konversi ke UTC+7 (WIB) untuk mendapatkan tanggal lokal yang akurat
+    const tzOffset = 7 * 60; // 7 jam dalam menit
+    const localTime = new Date(now.getTime() + (tzOffset + now.getTimezoneOffset()) * 60000);
+    
+    const today = localTime.toISOString().split('T')[0];
+    const currentYear = localTime.getFullYear();
+    const currentMonth = localTime.getMonth() + 1; // 1-12
+    const currentMonthStr = String(currentMonth).padStart(2, '0');
+
+    // Batas minggu ini (Senin - Minggu)
+    const dayOfWeek = localTime.getDay() || 7; 
+    const monday = new Date(localTime);
+    monday.setDate(localTime.getDate() - dayOfWeek + 1);
+    const startOfWeek = monday.toISOString().split('T')[0];
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const endOfWeek = sunday.toISOString().split('T')[0];
+
+    const summaryMap = {};
+
+    jurnalList.forEach(j => {
+      const guru = j.nama_guru || 'Unknown';
+      if (!summaryMap[guru]) {
+        summaryMap[guru] = { nama: guru, hariIni: 0, mingguIni: 0, bulanIni: 0, total: 0 };
       }
-    })
-    .withFailureHandler(function (e) {
-      showLoading(false);
-      showError('Koneksi gagal: ' + e);
-    })
-    .getAktivitasGuru();
+      
+      summaryMap[guru].total++;
+      
+      if (j.tanggal === today) {
+        summaryMap[guru].hariIni++;
+      }
+      
+      if (j.tanggal >= startOfWeek && j.tanggal <= endOfWeek) {
+        summaryMap[guru].mingguIni++;
+      }
+      
+      if (j.tanggal && j.tanggal.startsWith(`${currentYear}-${currentMonthStr}`)) {
+        summaryMap[guru].bulanIni++;
+      }
+    });
+
+    const summaryArr = Object.values(summaryMap).sort((a, b) => b.total - a.total);
+
+    AppCache.set('cache_pimpinan_aktivitas', summaryArr, 10);
+    showLoading(false);
+    tampilkanPimpinanAktivitas(summaryArr);
+
+  } catch (err) {
+    showLoading(false);
+    showError('Gagal memuat aktivitas guru: ' + err.message);
+  }
 }
 
 function tampilkanPimpinanAktivitas(dataGuru) {
@@ -901,7 +946,7 @@ function tampilkanPimpinanAktivitas(dataGuru) {
   document.getElementById('pimpinan_aktivitas').innerHTML = html;
 }
 
-function renderPimpinanShalat(forceRefresh = false) {
+async function renderPimpinanShalat(forceRefresh = false) {
   if (forceRefresh !== true) {
     const cached = AppCache.get('cache_pimpinan_shalat');
     if (cached) {
@@ -912,21 +957,61 @@ function renderPimpinanShalat(forceRefresh = false) {
 
   showLoading(true, 'Memuat Data Rekap Shalat...');
 
-  google.script.run
-    .withSuccessHandler(function (r) {
-      showLoading(false);
-      if (r.success) {
-        AppCache.set('cache_pimpinan_shalat', r.rekap, 10);
-        tampilkanPimpinanShalat(r.rekap);
-      } else {
-        showError('Gagal memuat rekap shalat: ' + r.error);
+  try {
+    const { data: shalatList, error } = await supaClient
+      .from('absensi_shalat')
+      .select('tanggal, status');
+
+    if (error) throw error;
+
+    const now = new Date();
+    const tzOffset = 7 * 60;
+    const localTime = new Date(now.getTime() + (tzOffset + now.getTimezoneOffset()) * 60000);
+    
+    const today = localTime.toISOString().split('T')[0];
+    const currentYear = localTime.getFullYear();
+    const currentMonth = localTime.getMonth() + 1;
+    const currentMonthStr = String(currentMonth).padStart(2, '0');
+
+    const dayOfWeek = localTime.getDay() || 7; 
+    const monday = new Date(localTime);
+    monday.setDate(localTime.getDate() - dayOfWeek + 1);
+    const startOfWeek = monday.toISOString().split('T')[0];
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const endOfWeek = sunday.toISOString().split('T')[0];
+
+    const rekap = {
+      hariIni: { Y: 0, T: 0 },
+      mingguIni: { Y: 0, T: 0 },
+      bulanIni: { Y: 0, T: 0 },
+      total: { Y: 0, T: 0 }
+    };
+
+    shalatList.forEach(s => {
+      if (s.status === 'Y' || s.status === 'T') {
+        rekap.total[s.status]++;
+        
+        if (s.tanggal === today) {
+          rekap.hariIni[s.status]++;
+        }
+        if (s.tanggal >= startOfWeek && s.tanggal <= endOfWeek) {
+          rekap.mingguIni[s.status]++;
+        }
+        if (s.tanggal && s.tanggal.startsWith(`${currentYear}-${currentMonthStr}`)) {
+          rekap.bulanIni[s.status]++;
+        }
       }
-    })
-    .withFailureHandler(function (e) {
-      showLoading(false);
-      showError('Koneksi gagal: ' + e);
-    })
-    .getDashboardShalat();
+    });
+
+    AppCache.set('cache_pimpinan_shalat', rekap, 10);
+    showLoading(false);
+    tampilkanPimpinanShalat(rekap);
+
+  } catch (err) {
+    showLoading(false);
+    showError('Gagal memuat rekap shalat: ' + err.message);
+  }
 }
 
 function tampilkanPimpinanShalat(rekap) {
@@ -1005,7 +1090,7 @@ function tampilkanPimpinanShalat(rekap) {
   document.getElementById('pimpinan_shalat').innerHTML = html;
 }
 
-function renderPimpinanPelanggaran(forceRefresh = false) {
+async function renderPimpinanPelanggaran(forceRefresh = false) {
   if (forceRefresh !== true) {
     const cached = AppCache.get('cache_pimpinan_pelanggaran');
     if (cached) {
@@ -1016,21 +1101,34 @@ function renderPimpinanPelanggaran(forceRefresh = false) {
 
   showLoading(true, 'Memuat Data Pelanggaran...');
 
-  google.script.run
-    .withSuccessHandler(function (r) {
-      showLoading(false);
-      if (r.success) {
-        AppCache.set('cache_pimpinan_pelanggaran', r.data, 10);
-        tampilkanPimpinanPelanggaran(r.data);
-      } else {
-        showError('Gagal memuat data pelanggaran: ' + r.error);
+  try {
+    const { data, error } = await supaClient
+      .from('catatan_sikap')
+      .select('nis, nama, kelas, poin')
+      .lt('poin', 0); // Ambil yang negatif (pelanggaran)
+
+    if (error) throw error;
+
+    const summaryMap = {};
+    (data || []).forEach(row => {
+      if (!summaryMap[row.nis]) {
+        summaryMap[row.nis] = { nama: row.nama, kelas: row.kelas, totalPoin: 0 };
       }
-    })
-    .withFailureHandler(function (e) {
-      showLoading(false);
-      showError('Koneksi gagal: ' + e);
-    })
-    .getDashboardPelanggaran();
+      // Absolutkan poin karena UI ingin menampilkan nilai positif atau akumulasi
+      summaryMap[row.nis].totalPoin += Math.abs(parseInt(row.poin) || 0);
+    });
+
+    const top10 = Object.values(summaryMap)
+      .sort((a, b) => b.totalPoin - a.totalPoin)
+      .slice(0, 10);
+
+    AppCache.set('cache_pimpinan_pelanggaran', top10, 10);
+    showLoading(false);
+    tampilkanPimpinanPelanggaran(top10);
+  } catch (err) {
+    showLoading(false);
+    showError('Gagal memuat data pelanggaran: ' + err.message);
+  }
 }
 
 function tampilkanPimpinanPelanggaran(top10) {
@@ -1079,7 +1177,7 @@ function tampilkanPimpinanPelanggaran(top10) {
   document.getElementById('pimpinan_pelanggaran').innerHTML = html;
 }
 
-function renderPimpinanSikap(forceRefresh = false) {
+async function renderPimpinanSikap(forceRefresh = false) {
   if (forceRefresh !== true) {
     const cached = AppCache.get('cache_pimpinan_sikap');
     if (cached) {
@@ -1090,21 +1188,35 @@ function renderPimpinanSikap(forceRefresh = false) {
 
   showLoading(true, 'Memuat Data Catatan Sikap...');
 
-  google.script.run
-    .withSuccessHandler(function (r) {
-      showLoading(false);
-      if (r.success) {
-        AppCache.set('cache_pimpinan_sikap', r, 10);
-        tampilkanPimpinanSikap(r);
-      } else {
-        showError('Gagal memuat catatan sikap: ' + r.error);
+  try {
+    const { data, error } = await supaClient
+      .from('catatan_sikap')
+      .select('nis, nama, kelas, poin')
+      .gt('poin', 0); // Ambil yang positif
+
+    if (error) throw error;
+
+    const summaryMap = {};
+    (data || []).forEach(row => {
+      const poin = parseInt(row.poin) || 0;
+      if (!summaryMap[row.nis]) {
+        summaryMap[row.nis] = { nama: row.nama, kelas: row.kelas, totalPoin: 0 };
       }
-    })
-    .withFailureHandler(function (e) {
-      showLoading(false);
-      showError('Koneksi gagal: ' + e);
-    })
-    .getDashboardSikap();
+      summaryMap[row.nis].totalPoin += poin;
+    });
+
+    const top10 = Object.values(summaryMap)
+      .sort((a, b) => b.totalPoin - a.totalPoin)
+      .slice(0, 10);
+
+    const r = { top10: top10, rekap: {} };
+    AppCache.set('cache_pimpinan_sikap', r, 10);
+    showLoading(false);
+    tampilkanPimpinanSikap(r);
+  } catch (err) {
+    showLoading(false);
+    showError('Gagal memuat catatan sikap: ' + err.message);
+  }
 }
 
 function tampilkanPimpinanSikap(r) {
@@ -1162,11 +1274,13 @@ function tampilkanPimpinanSikap(r) {
 // ============================================================
 // ============ FUNGSI BOBOT SISWA (PIMPINAN) =================
 // ============================================================
-function renderPimpinanBobot(forceRefresh = false) {
+async function renderPimpinanBobot(forceRefresh = false) {
   const kelasSelect = document.getElementById('filterKelasBobotPimpinan');
   const bulanSelect = document.getElementById('filterBulanBobotPimpinan');
   
-  const kelas = kelasSelect ? kelasSelect.value : 'E1';
+  // Ambil kelas dari config jika tidak ada yg terpilih
+  const defaultKelas = (App.config && App.config.kelasReguler && App.config.kelasReguler.length > 0) ? App.config.kelasReguler[0] : 'E1';
+  const kelas = kelasSelect ? kelasSelect.value : defaultKelas;
   const bulan = bulanSelect ? bulanSelect.value : 'ALL';
 
   const cacheKey = `cache_pimpinan_bobot_${kelas}_${bulan}`;
@@ -1181,21 +1295,50 @@ function renderPimpinanBobot(forceRefresh = false) {
 
   showLoading(true, 'Memuat Data Bobot Siswa...');
 
-  google.script.run
-    .withSuccessHandler(function (r) {
-      showLoading(false);
-      if (r.success) {
-        AppCache.set(cacheKey, r.data, 10);
-        tampilkanPimpinanBobot(r.data, kelas, bulan);
-      } else {
-        showError('Gagal memuat data bobot: ' + r.error);
+  try {
+    const { data, error } = await supaClient
+      .from('catatan_sikap')
+      .select('nis, nama, kelas, poin, tanggal')
+      .eq('kelas', kelas);
+
+    if (error) throw error;
+    
+    // Filter berdasarkan bulan
+    const filteredData = (data || []).filter(item => {
+      if (!item.tanggal) return false;
+      const [y, m, d] = item.tanggal.split('-');
+      if (bulan !== 'ALL' && parseInt(m) !== parseInt(bulan)) return false;
+      return true;
+    });
+
+    const summaryMap = {};
+    filteredData.forEach(row => {
+      if (!summaryMap[row.nis]) {
+        summaryMap[row.nis] = { nama: row.nama, kelas: row.kelas, positif: 0, pelanggaran: 0, totalBobot: 0 };
       }
-    })
-    .withFailureHandler(function (e) {
-      showLoading(false);
-      showError('Koneksi gagal: ' + e);
-    })
-    .getDashboardBobotSiswa(kelas, bulan);
+      const poin = parseInt(row.poin) || 0;
+      if (poin > 0) {
+        summaryMap[row.nis].positif += poin;
+      } else if (poin < 0) {
+        summaryMap[row.nis].pelanggaran += Math.abs(poin);
+      }
+    });
+
+    Object.values(summaryMap).forEach(s => {
+      s.totalBobot = s.positif - s.pelanggaran;
+    });
+
+    const resultList = Object.values(summaryMap)
+      .sort((a, b) => b.totalBobot - a.totalBobot);
+
+    AppCache.set(cacheKey, resultList, 10);
+    showLoading(false);
+    tampilkanPimpinanBobot(resultList, kelas, bulan);
+
+  } catch (err) {
+    showLoading(false);
+    showError('Gagal memuat data bobot: ' + err.message);
+  }
 }
 
 function tampilkanPimpinanBobot(dataBobot, currentKelas, currentBulan) {
