@@ -5018,10 +5018,18 @@
       // Gunakan App.masterPelanggaran (cache global)
       const mpData = App.masterPelanggaran || [];
       const uniqueJenis = [...new Set(mpData.map(p => p.jenis))];
+      
+      const isJenisManual = !uniqueJenis.includes(data.jenis);
+      let isPerilakuManual = false;
 
-      // Filter perilaku untuk jenis yang dipilih
-      const perilakuOptions = mpData
-        .filter(p => p.jenis === data.jenis)
+      // Cek apakah perilaku ada di master data untuk jenis tersebut
+      const perilakuTersedia = mpData.filter(p => p.jenis === data.jenis);
+      if (isJenisManual || !perilakuTersedia.some(p => p.perilaku === data.perilaku)) {
+        isPerilakuManual = true;
+      }
+
+      // Filter perilaku untuk jenis yang dipilih (jika ada)
+      const perilakuOptions = perilakuTersedia
         .map(p => `<option value="${p.perilaku}" data-bobot="${p.bobot}" ${p.perilaku === data.perilaku ? 'selected' : ''}>${p.perilaku} (${p.bobot} poin)</option>`)
         .join('');
 
@@ -5042,19 +5050,23 @@
         </div>
         <div class="form-group">
           <label>Jenis Pelanggaran</label>
-          <select id="editJenisPelanggaran" class="form-control" onchange="loadEditPerilakuPelanggaran()">
+          <select id="editJenisPelanggaran" class="form-control">
             ${uniqueJenis.map(j => `<option value="${j}" ${j === data.jenis ? 'selected' : ''}>${j}</option>`).join('')}
+            <option value="__manual__" ${isJenisManual ? 'selected' : ''}>-- Isi Manual --</option>
           </select>
+          <input type="text" id="editJenisManual" class="form-control" style="margin-top:5px; display:${isJenisManual ? 'block' : 'none'};" value="${isJenisManual ? data.jenis : ''}" placeholder="Ketik jenis pelanggaran manual">
         </div>
         <div class="form-group">
           <label>Perilaku</label>
-          <select id="editPerilakuPelanggaran" class="form-control">
+          <select id="editPerilakuPelanggaran" class="form-control" style="display:${isJenisManual ? 'none' : 'block'};">
             ${perilakuOptions}
+            <option value="__manual__" ${isPerilakuManual && !isJenisManual ? 'selected' : ''}>-- Isi Manual --</option>
           </select>
+          <input type="text" id="editPerilakuManual" class="form-control" style="margin-top:5px; display:${isPerilakuManual ? 'block' : 'none'};" value="${isPerilakuManual ? data.perilaku : ''}" placeholder="Ketik perilaku manual">
         </div>
         <div class="form-group">
           <label>Poin</label>
-          <input type="number" id="editPoinPelanggaran" class="form-control" value="${data.poin}" readonly style="background:#f5f5f5;">
+          <input type="number" id="editPoinPelanggaran" class="form-control" value="${data.poin}" ${isPerilakuManual ? '' : 'readonly style="background:#f5f5f5;"'}>
         </div>
         <div class="form-group">
           <label>Tindak Lanjut</label>
@@ -5070,10 +5082,54 @@
 
       document.body.appendChild(modal);
 
-      // Update poin saat perilaku berubah
+      // Event listener saat ubah jenis di modal
+      document.getElementById('editJenisPelanggaran').onchange = function () {
+        const val = this.value;
+        const jenisManualInput = document.getElementById('editJenisManual');
+        const perilakuSelect = document.getElementById('editPerilakuPelanggaran');
+        const perilakuManualInput = document.getElementById('editPerilakuManual');
+        const poinInput = document.getElementById('editPoinPelanggaran');
+
+        if (val === '__manual__') {
+          jenisManualInput.style.display = 'block';
+          perilakuSelect.style.display = 'none';
+          perilakuManualInput.style.display = 'block';
+          poinInput.removeAttribute('readonly');
+          poinInput.style.background = '#fff';
+        } else {
+          jenisManualInput.style.display = 'none';
+          perilakuSelect.style.display = 'block';
+          perilakuManualInput.style.display = 'none';
+          
+          // Re-populate perilaku
+          const options = mpData
+            .filter(p => p.jenis === val)
+            .map(p => `<option value="${p.perilaku}" data-bobot="${p.bobot}">${p.perilaku} (${p.bobot} poin)</option>`);
+          
+          perilakuSelect.innerHTML = options.join('') + '<option value="__manual__">-- Isi Manual --</option>';
+          
+          // Trigger change untuk set poin pertama
+          perilakuSelect.dispatchEvent(new Event('change'));
+        }
+      };
+
+      // Event listener saat ubah perilaku di modal
       document.getElementById('editPerilakuPelanggaran').onchange = function () {
-        const selected = this.selectedOptions[0];
-        document.getElementById('editPoinPelanggaran').value = selected ? selected.dataset.bobot : 0;
+        const val = this.value;
+        const perilakuManualInput = document.getElementById('editPerilakuManual');
+        const poinInput = document.getElementById('editPoinPelanggaran');
+
+        if (val === '__manual__') {
+          perilakuManualInput.style.display = 'block';
+          poinInput.removeAttribute('readonly');
+          poinInput.style.background = '#fff';
+        } else {
+          perilakuManualInput.style.display = 'none';
+          const selected = this.selectedOptions[0];
+          poinInput.value = selected ? selected.dataset.bobot : 0;
+          poinInput.setAttribute('readonly', true);
+          poinInput.style.background = '#f5f5f5';
+        }
       };
     }
 
@@ -5102,10 +5158,22 @@
     async function simpanEditPelanggaran() {
       if (!currentEditPelanggaranId) return;
 
+      const jenisSelect = document.getElementById('editJenisPelanggaran').value;
+      const perilakuSelect = document.getElementById('editPerilakuPelanggaran').value;
+      
+      const jenis = jenisSelect === '__manual__' 
+        ? document.getElementById('editJenisManual').value.trim() 
+        : jenisSelect;
+        
+      let perilaku = perilakuSelect;
+      if (jenisSelect === '__manual__' || perilakuSelect === '__manual__') {
+        perilaku = document.getElementById('editPerilakuManual').value.trim();
+      }
+
       const dataBaru = {
         tanggal: document.getElementById('editTanggalPelanggaran').value,
-        jenis: document.getElementById('editJenisPelanggaran').value,
-        perilaku: document.getElementById('editPerilakuPelanggaran').value,
+        jenis: jenis,
+        perilaku: perilaku,
         poin: document.getElementById('editPoinPelanggaran').value,
         tindakLanjut: document.getElementById('editTindakLanjutPelanggaran').value
       };
