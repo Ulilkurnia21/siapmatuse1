@@ -2867,7 +2867,7 @@
   
 
           toggleButtonLoading('button[onclick="simpanAbsensi()"]', false);
-          const shalatMsg = dataShalat.length > 0 ? `, ${dataShalat.length} data shalat` : '';
+          const shalatMsg = (jam === '1' || jam === '7') && dataShalat.length > 0 ? `, ${dataShalat.length} data shalat` : '';
           showSuccess(`${dataAbsen.length} data absensi tersimpan${shalatMsg}`);
           document.getElementById('absenContainer').style.display = 'none';
         } catch (err) {
@@ -3099,7 +3099,8 @@
   
 
           toggleButtonLoading('button[onclick="updateAbsensi()"]', false);
-          showSuccess(`${dataAbsen.length} data berhasil diupdate`);
+          const shalatMsg = (jam === '1' || jam === '7') && dataShalat.length > 0 ? ` & ${dataShalat.length} shalat` : '';
+          showSuccess(`${dataAbsen.length} data absensi${shalatMsg} berhasil diupdate`);
           document.getElementById('editContainer').style.display = 'none';
         } catch (err) {
           toggleButtonLoading('button[onclick="updateAbsensi()"]', false);
