@@ -306,11 +306,31 @@ async function renderPimpinanKehadiran(forceRefresh = false) {
     // Prioritas: Alpa > Cabut > Sakit > Izin > Terlambat > Hadir
     const prioritas = { 'A': 6, 'C': 5, 'S': 4, 'I': 3, 'T': 2, 'H': 1 };
     const statusText = { 'A': 'Alpa', 'C': 'Cabut', 'S': 'Sakit', 'I': 'Izin', 'T': 'Telat', 'H': 'Hadir' };
+    
+    // DEDUPLIKASI: 1 Siswa 1 Status per Hari berdasarkan prioritas
+    const absensiPerSiswaPerHari = {};
+    allAbsensi.forEach(row => {
+      const stat = row.status || 'H';
+      const key = `${row.nis}_${row.tanggal}`;
+      if (!absensiPerSiswaPerHari[key]) {
+        absensiPerSiswaPerHari[key] = { ...row, statusKode: stat };
+      } else {
+        const prevStatus = absensiPerSiswaPerHari[key].statusKode;
+        const currPrio = prioritas[stat] || 0;
+        const prevPrio = prioritas[prevStatus] || 0;
+        if (currPrio > prevPrio) {
+          absensiPerSiswaPerHari[key].statusKode = stat;
+          absensiPerSiswaPerHari[key].status = stat; // perbarui status asli
+        }
+      }
+    });
+
+    const dedupedAbsensi = Object.values(absensiPerSiswaPerHari);
     const absensiHariIniPerSiswa = {}; 
 
-    allAbsensi.forEach(row => {
+    dedupedAbsensi.forEach(row => {
       const tgl = row.tanggal; // format YYYY-MM-DD
-      const stat = row.status || 'H';
+      const stat = row.statusKode; // Gunakan status hasil deduplikasi
       
       // Tambah ke Total
       if (rekap.total[stat] !== undefined) rekap.total[stat]++;
@@ -325,19 +345,9 @@ async function renderPimpinanKehadiran(forceRefresh = false) {
         if (rekap.mingguIni[stat] !== undefined) rekap.mingguIni[stat]++;
       }
 
-      // Khusus Hari Ini: Pakai logika filter prioritas jika absen di multiple jam
+      // Khusus Hari Ini
       if (tgl === todayStr) {
-        const key = `${row.nis}_${row.kelas}`;
-        if (!absensiHariIniPerSiswa[key]) {
-          absensiHariIniPerSiswa[key] = { nis: row.nis, nama: row.nama, kelas: row.kelas, statusKode: stat };
-        } else {
-          const prevStatus = absensiHariIniPerSiswa[key].statusKode;
-          const currPrio = prioritas[stat] || 0;
-          const prevPrio = prioritas[prevStatus] || 0;
-          if (currPrio > prevPrio) {
-            absensiHariIniPerSiswa[key].statusKode = stat;
-          }
-        }
+        absensiHariIniPerSiswa[row.nis] = { nis: row.nis, nama: row.nama, kelas: row.kelas, statusKode: stat };
       }
     });
 
@@ -379,7 +389,7 @@ async function renderPimpinanKehadiran(forceRefresh = false) {
       success: true,
       meta: { daftarKelas: daftarKelas },
       rekap: rekap,
-      rawDataTop10: allAbsensi.filter(a => a.status !== 'H' && a.status !== null) // Hanya simpan yg non-hadir di memory
+      rawDataTop10: dedupedAbsensi.filter(a => a.statusKode !== 'H' && a.statusKode !== null) // Hanya simpan yg non-hadir (yg sudah dedup)
     };
 
     AppCache.set('dashboardKehadiran', resultPayload, 10); // Cache 10 menit
@@ -960,7 +970,7 @@ async function renderPimpinanShalat(forceRefresh = false) {
   try {
     const { data: shalatList, error } = await supaClient
       .from('absensi_shalat')
-      .select('tanggal, status');
+      .select('nis, tanggal, status');
 
     if (error) throw error;
 
@@ -988,7 +998,20 @@ async function renderPimpinanShalat(forceRefresh = false) {
       total: { Y: 0, T: 0 }
     };
 
+    // DEDUPLIKASI 1 hari 1 shalat per siswa (Prioritas T dibanding Y jika dua-duanya ada)
+    const shalatPerSiswaPerHari = {};
     shalatList.forEach(s => {
+      const key = `${s.nis}_${s.tanggal}`;
+      if (!shalatPerSiswaPerHari[key]) {
+        shalatPerSiswaPerHari[key] = { ...s };
+      } else {
+        if (s.status === 'T') { // Prioritaskan Tidak Shalat
+          shalatPerSiswaPerHari[key].status = 'T';
+        }
+      }
+    });
+
+    Object.values(shalatPerSiswaPerHari).forEach(s => {
       if (s.status === 'Y' || s.status === 'T') {
         rekap.total[s.status]++;
         
