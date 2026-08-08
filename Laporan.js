@@ -1061,3 +1061,206 @@ async function updateLaporanNilaiFilter() {
     showError('Gagal membuat laporan shalat: ' + err.message);
   }
 }
+
+// ================= DOWNLOAD LAPORAN SIKAP (Catatan & Pelanggaran) =================
+async function downloadLaporanSikap() {
+  const kelas = document.getElementById('laporanSikapKelas')?.value;
+  const tahun = document.getElementById('laporanSikapTahun')?.value;
+  const jenis = document.getElementById('laporanSikapJenis')?.value || 'tanggal';
+
+  if (!kelas || !tahun) {
+    showError('Mohon pilih kelas dan tahun terlebih dahulu');
+    return;
+  }
+
+  const btn = document.getElementById('btnDownloadSikap');
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ MENYIAPKAN...'; }
+
+  try {
+    const tglStart = `${tahun}-01-01`;
+    const tglEnd = `${tahun}-12-31`;
+
+    // Tarik catatan, pelanggaran, dan master_dimensi secara bersamaan
+    const [resCatatan, resPelanggaran, resDimensi] = await Promise.all([
+      supaClient.from('catatan').select('*').eq('kelas', kelas).gte('tanggal', tglStart).lte('tanggal', tglEnd).order('tanggal', { ascending: true }),
+      supaClient.from('pelanggaran').select('*').eq('kelas', kelas).gte('tanggal', tglStart).lte('tanggal', tglEnd).order('tanggal', { ascending: true }),
+      supaClient.from('master_dimensi').select('*')
+    ]);
+
+    if (resCatatan.error) throw resCatatan.error;
+    if (resPelanggaran.error) throw resPelanggaran.error;
+
+    // Buat map dimensi untuk lookup cepat
+    const dimensiMap = {};
+    (resDimensi.data || []).forEach(d => { dimensiMap[d.id] = d; });
+
+    // Gabungkan dengan label tipe
+    const dataCatatan = (resCatatan.data || []).map(r => {
+      const elemenEntry = dimensiMap[r.dimensi_id];
+      return {
+        ...r,
+        tipe: 'POSITIF',
+        kategori: elemenEntry ? elemenEntry.dimensi : '-',
+        detail: elemenEntry ? elemenEntry.elemen : '-',
+        keterangan: r.catatan || '-',
+        guru: r.username_guru || '-'
+      };
+    });
+
+    const dataPelanggaran = (resPelanggaran.data || []).map(r => ({
+      ...r,
+      tipe: 'NEGATIF',
+      kategori: r.jenis || '-',
+      detail: r.perilaku || '-',
+      keterangan: r.tindak_lanjut || '-',
+      guru: r.username_guru || '-'
+    }));
+
+    const semua = [...dataCatatan, ...dataPelanggaran].sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+
+    if (semua.length === 0) {
+      if (btn) { btn.disabled = false; btn.innerHTML = '📥 DOWNLOAD PDF'; }
+      showError('Tidak ada data sikap untuk kelas ' + kelas + ' tahun ' + tahun);
+      return;
+    }
+
+    const BULAN_NAMA = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+    const cssBase = `
+      @page { size: A4 landscape; margin: 1.5cm; }
+      @media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }
+      body { font-family: Arial, sans-serif; font-size: 10px; }
+      table { width:100%; border-collapse: collapse; margin:15px 0; font-size:10px; }
+      th { background: #2e7d32 !important; color: white !important; padding: 7px; text-align: center; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      td { border: 1px solid #a5d6a7; padding: 5px; vertical-align: top; }
+      .positif { background: #e8f5e9 !important; color: #1b5e20 !important; font-weight: bold; }
+      .negatif { background: #ffebee !important; color: #b71c1c !important; font-weight: bold; }
+      .ttd { margin-top: 50px; text-align: right; }
+      .ttd div { margin-top: 60px; }
+      h3 { text-align:center; text-transform:uppercase; margin-bottom:20px; }
+    `;
+
+    let html = `<html><head><style>${cssBase}</style></head><body>`;
+
+    if (jenis === 'tanggal') {
+      // ============ FORMAT PER TANGGAL ============
+      html += KOP_SURAT_LAPORAN;
+      html += `<h3>Laporan Sikap Siswa — Kelas ${kelas} Tahun ${tahun}</h3>`;
+      html += `<div style="margin-bottom:10px; font-size:11px;">Kelas: <b>${kelas}</b> &nbsp;|&nbsp; Tahun: <b>${tahun}</b> &nbsp;|&nbsp; Total Data: <b>${semua.length}</b></div>`;
+      html += `<table>
+        <thead>
+          <tr>
+            <th style="width:30px;">No</th>
+            <th style="width:75px;">Tanggal</th>
+            <th style="width:130px;">Nama Siswa</th>
+            <th style="width:50px;">NIS</th>
+            <th style="width:60px;">Tipe</th>
+            <th style="width:100px;">Dimensi/Jenis</th>
+            <th style="width:120px;">Elemen/Perilaku</th>
+            <th style="width:30px;">Poin</th>
+            <th>Catatan / Tindak Lanjut</th>
+            <th style="width:90px;">Guru</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      semua.forEach((item, i) => {
+        const tipeClass = item.tipe === 'POSITIF' ? 'positif' : 'negatif';
+        html += `<tr>
+          <td style="text-align:center;">${i + 1}</td>
+          <td style="text-align:center;">${item.tanggal}</td>
+          <td>${item.nama || '-'}</td>
+          <td style="text-align:center;">${item.nis || '-'}</td>
+          <td class="${tipeClass}" style="text-align:center;">${item.tipe}</td>
+          <td>${item.kategori}</td>
+          <td>${item.detail}</td>
+          <td style="text-align:center;">${item.poin || 0}</td>
+          <td>${item.keterangan}</td>
+          <td>${item.guru}</td>
+        </tr>`;
+      });
+
+      html += `</tbody></table>`;
+
+    } else {
+      // ============ FORMAT PER SISWA ============
+      // Group by NIS
+      const bySiswa = {};
+      semua.forEach(item => {
+        const key = item.nis;
+        if (!bySiswa[key]) bySiswa[key] = { nis: item.nis, nama: item.nama, records: [] };
+        bySiswa[key].records.push(item);
+      });
+
+      const siswaList = Object.values(bySiswa).sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
+      let isFirst = true;
+
+      siswaList.forEach((siswa) => {
+        if (!isFirst) html += '<div style="page-break-before: always;"></div>';
+        isFirst = false;
+
+        html += KOP_SURAT_LAPORAN;
+
+        const totalPoinPositif = siswa.records.filter(r => r.tipe === 'POSITIF').reduce((s, r) => s + (r.poin || 0), 0);
+        const totalPoinNegatif = siswa.records.filter(r => r.tipe === 'NEGATIF').reduce((s, r) => s + (r.poin || 0), 0);
+
+        html += `
+          <h3>Laporan Sikap — ${siswa.nama} (${siswa.nis})</h3>
+          <div style="margin-bottom:10px; font-size:11px;">
+            Kelas: <b>${kelas}</b> &nbsp;|&nbsp; Tahun: <b>${tahun}</b> &nbsp;|&nbsp;
+            Poin Positif: <b style="color:#2e7d32;">+${totalPoinPositif}</b> &nbsp;|&nbsp;
+            Poin Negatif: <b style="color:#b71c1c;">${totalPoinNegatif}</b>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width:30px;">No</th>
+                <th style="width:75px;">Tanggal</th>
+                <th style="width:60px;">Tipe</th>
+                <th style="width:110px;">Dimensi/Jenis</th>
+                <th style="width:130px;">Elemen/Perilaku</th>
+                <th style="width:30px;">Poin</th>
+                <th>Catatan / Tindak Lanjut</th>
+                <th style="width:90px;">Guru</th>
+              </tr>
+            </thead>
+            <tbody>`;
+
+        siswa.records.forEach((item, i) => {
+          const tipeClass = item.tipe === 'POSITIF' ? 'positif' : 'negatif';
+          html += `<tr>
+            <td style="text-align:center;">${i + 1}</td>
+            <td style="text-align:center;">${item.tanggal}</td>
+            <td class="${tipeClass}" style="text-align:center;">${item.tipe}</td>
+            <td>${item.kategori}</td>
+            <td>${item.detail}</td>
+            <td style="text-align:center;">${item.poin || 0}</td>
+            <td>${item.keterangan}</td>
+            <td>${item.guru}</td>
+          </tr>`;
+        });
+
+        html += `</tbody></table>`;
+      });
+    }
+
+    // Tanda tangan
+    const now = new Date();
+    const bulanNama = BULAN_NAMA[now.getMonth() + 1];
+    html += `
+      <div class="ttd">
+        Silayang, ${now.getDate()} ${bulanNama} ${now.getFullYear()}<br>
+        Wali Kelas<br>
+        <div></div>
+        <b>&nbsp;</b>
+      </div>
+    </body></html>`;
+
+    if (btn) { btn.disabled = false; btn.innerHTML = '📥 DOWNLOAD PDF'; }
+    openReportAndPrint(html);
+
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '📥 DOWNLOAD PDF'; }
+    showError('Gagal membuat laporan sikap: ' + err.message);
+  }
+}
