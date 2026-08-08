@@ -873,7 +873,6 @@ async function updateLaporanNilaiFilter() {
           .from('shalat')
           .select('nis, nama, kelas, tanggal, status, jumlah')
           .eq('kelas', kelas)
-          .gte('tanggal', '2026-08-10')
           .order('tanggal', { ascending: true })
           .order('nama',    { ascending: true });
 
@@ -892,16 +891,20 @@ async function updateLaporanNilaiFilter() {
 
         const rekap = {};
         data.forEach(row => {
-          if (!rekap[row.nis]) rekap[row.nis] = { nama: row.nama, Y: 0, T: 0, H: 0, totalJml: 0, hariAda: 0 };
+          if (!rekap[row.nis]) rekap[row.nis] = { nama: row.nama, Y: 0, T: 0, H: 0, totalJml: 0, totalJmlSejakAgustus: 0, hariAdaSejakAgustus: 0 };
           rekap[row.nis][row.status] = (rekap[row.nis][row.status] || 0) + 1;
           rekap[row.nis].totalJml += (row.jumlah || 0);
-          rekap[row.nis].hariAda++;
+          
+          if (row.tanggal >= '2026-08-10') {
+            rekap[row.nis].totalJmlSejakAgustus += (row.jumlah || 0);
+            rekap[row.nis].hariAdaSejakAgustus++;
+          }
         });
 
         const siswaList = Object.entries(rekap)
           .map(([nis, d]) => ({
             nis, ...d, total: d.Y + d.T + d.H,
-            rataRata: d.hariAda > 0 ? (d.totalJml / d.hariAda).toFixed(1) : '0.0'
+            rataRata: d.hariAdaSejakAgustus > 0 ? (d.totalJmlSejakAgustus / d.hariAdaSejakAgustus).toFixed(1) : 'Belum ada data'
           }))
           .sort((a, b) => a.nama.localeCompare(b.nama));
 
@@ -941,7 +944,7 @@ async function updateLaporanNilaiFilter() {
         </head><body>
           <h2>REKAPITULASI ABSENSI SHALAT</h2>
           <h3>Kelas: ${kelas} &nbsp;|&nbsp; Periode: ${periodeStr}</h3>
-          <p class="info">Data shalat = pelaksanaan shalat <strong>HARI SEBELUMNYA</strong> yang diinput guru pada hari berikutnya. Mulai 10 Agustus 2026.</p>
+          <p class="info">Data shalat = pelaksanaan shalat <strong>HARI SEBELUMNYA</strong> yang diinput guru pada hari berikutnya.</p>
           <table>
             <thead>
               <tr>
