@@ -1334,7 +1334,7 @@ async function downloadLaporanWali() {
   try {
     const usernameGuru = App.user.username;
     const namaGuru = App.guruData?.nama || usernameGuru;
-    const nipGuru = App.guruData?.nip || '-';
+    const nipGuru = App.user.profil?.nip || App.guruData?.nip || '-';
     
     let query = supaClient.from('pembinaan_wali')
       .select('*')
@@ -1385,21 +1385,29 @@ async function downloadLaporanWali() {
     let html = `<html><head><style>${cssBase}</style></head><body>`;
     
     const bulanNum = bulan === 'semua' ? 'semua' : parseInt(bulan);
-    const monthsToProcess = bulanNum === 'semua' ? [1,2,3,4,5,6,7,8,9,10,11,12] : [bulanNum];
+    const mNama = bulanNum === 'semua' ? 'Semua Bulan' : BULAN_NAMA[bulanNum];
+
+    // Jika filter "semua" dipilih, maka buat 1 halaman per anak asuh
+    let siswaGroups = [];
     
-    const validMonths = monthsToProcess.filter(m => {
-       return filteredData.some(j => parseInt(j.tanggal.split('-')[1]) === m);
-    });
-    
-    if (validMonths.length === 0) {
-       validMonths.push(bulanNum === 'semua' ? 1 : bulanNum); 
+    if (nis === 'semua') {
+      const bySiswa = {};
+      filteredData.forEach(item => {
+        if (!bySiswa[item.nis]) bySiswa[item.nis] = { nis: item.nis, nama: item.nama, records: [] };
+        bySiswa[item.nis].records.push(item);
+      });
+      siswaGroups = Object.values(bySiswa).sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
+      
+      if (siswaGroups.length === 0) {
+         siswaGroups = [{ nis: '-', nama: '-', records: [] }];
+      }
+    } else {
+      const firstItem = filteredData[0] || { nis: nis, nama: document.getElementById('lapWaliSiswa')?.selectedOptions[0]?.text.replace(/ \(.*/, '') || '-' };
+      siswaGroups = [{ nis: firstItem.nis, nama: firstItem.nama, records: filteredData }];
     }
     
-    validMonths.forEach((m, idx) => {
-      const monthData = filteredData.filter(j => parseInt(j.tanggal.split('-')[1]) === m);
-      const mNama = BULAN_NAMA[m];
-      
-      const pageBreakClass = (idx < validMonths.length - 1) ? 'class="page-break"' : '';
+    siswaGroups.forEach((group, idx) => {
+      const pageBreakClass = (idx < siswaGroups.length - 1) ? 'class="page-break"' : '';
       
       html += `
       <div ${pageBreakClass}>
@@ -1409,7 +1417,7 @@ async function downloadLaporanWali() {
         
         <div class="info">
           <table>
-            <tr><td class="label">Nama Guru Wali</td><td class="separator">:</td><td>${namaGuru}</td></tr>
+            <tr><td class="label">Guru Wali</td><td class="separator">:</td><td>${namaGuru}</td></tr>
             <tr><td class="label">NIP</td><td class="separator">:</td><td>${nipGuru}</td></tr>
             <tr><td class="label">Periode</td><td class="separator">:</td><td>${mNama} ${tahun}</td></tr>
           </table>
@@ -1421,7 +1429,7 @@ async function downloadLaporanWali() {
               <th width="30">No</th>
               <th width="100">Hari/Tanggal</th>
               <th>Kelas</th>
-              <th>Nama Siswa</th>
+              <th>Nama Anak Asuh</th>
               <th>Topik Pembinaan</th>
               <th>Permasalahan</th>
               <th>Isi Pembinaan</th>
@@ -1431,11 +1439,11 @@ async function downloadLaporanWali() {
           <tbody>
       `;
       
-      if (monthData.length === 0) {
+      if (group.records.length === 0) {
         html += `<tr><td colspan="8" style="text-align:center; padding:20px;">Belum ada riwayat pembinaan</td></tr>`;
       } else {
         let no = 1;
-        monthData.forEach(j => {
+        group.records.forEach(j => {
           const tglFormat = j.tanggal.split('-').reverse().join('/'); // YYYY-MM-DD -> DD/MM/YYYY
           html += `
             <tr>
