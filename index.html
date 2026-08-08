@@ -2681,6 +2681,8 @@
     }
 
     function displaySiswa(siswa, dataShalat) {
+      const jam = document.getElementById('absenJam').value;
+      const showShalat = (jam === '1' || jam === '7') ? 'flex' : 'none';
       dataShalat = dataShalat || {};
       let html = '';
       siswa.forEach((s, i) => {
@@ -2722,7 +2724,7 @@
                 </div>
               </div>
               <input type="hidden" id="st_${s.nis}" value="H">
-              <div class="shalat-row" style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:5px;border-top:1px dashed #b39ddb;flex-wrap:wrap;">
+              <div class="shalat-row" style="display:${showShalat};align-items:center;gap:6px;margin-top:6px;padding-top:5px;border-top:1px dashed #b39ddb;flex-wrap:wrap;">
                 <span style="font-size:11px;color:#7e57c2;font-weight:bold;">🕌 Kmrn:</span>
                 <select id="shalat_jml_${s.nis}" style="padding:2px 4px;font-size:12px;border-radius:4px;border:1px solid #b39ddb;width:50px;">${jmlOpts}</select>
                 <label style="display:flex;align-items:center;gap:2px;cursor:pointer;font-size:12px;">
@@ -2837,7 +2839,7 @@
           if (dataShalat.length > 0) {
             const { error: shErr } = await supaClient
               .from('shalat')
-              .upsert(dataShalat, { onConflict: 'nis,tanggal,kelas' });
+              .upsert(dataShalat, { onConflict: 'nis,tanggal' });
             if (shErr) console.warn('Shalat save warn:', shErr.message);
           }
 
@@ -2924,6 +2926,8 @@
     }
 
     function displaySiswaForEdit(siswa, existingStatus, existingShalat) {
+      const jam = document.getElementById('editJam').value;
+      const showShalat = (jam === '1' || jam === '7') ? 'table-cell' : 'none';
       existingShalat = existingShalat || {};
       const tbody = document.getElementById('editTbody');
       let html = '';
@@ -2966,7 +2970,7 @@
                 <option value="T" ${stT}>T - Terlambat</option>
               </select>
             </td>
-            <td>
+            <td style="display:${showShalat}">
               <select id="edit_shalat_st_${s.nis}">
                 <option value="">--</option>
                 <option value="Y" ${shY}>Y</option>
@@ -2974,7 +2978,7 @@
                 <option value="H" ${sh_H}>H</option>
               </select>
             </td>
-            <td>
+            <td style="display:${showShalat}">
               <select id="edit_shalat_jml_${s.nis}">
                 ${jmlOptions}
               </select>
@@ -3048,7 +3052,7 @@
           if (insErr) throw insErr;
 
           if (dataShalat.length > 0) {
-            await supaClient.from('shalat').upsert(dataShalat, { onConflict: 'nis,tanggal,kelas' });
+            await supaClient.from('shalat').upsert(dataShalat, { onConflict: 'nis,tanggal' });
           }
 
           toggleButtonLoading('button[onclick="updateAbsensi()"]', false);
